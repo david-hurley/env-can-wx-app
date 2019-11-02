@@ -2,25 +2,14 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 
-
 app = dash.Dash(__name__)
 
 server = app.server
 
 app.layout = html.Div([
-    html.H2('Hello World'),
-    dcc.Dropdown(
-        id='dropdown',
-        options=[{'label': i, 'value': i} for i in ['LA', 'NYC', 'MTL']],
-        value='LA'
-    ),
-    html.Div(id='display-value')
+    html.H1('Environment Canada Weather App'),
+    html.Iframe(id='map',srcDoc=open('station_locations.html','r').read(),width='70%',height='600')
 ])
-
-@app.callback(dash.dependencies.Output('display-value', 'children'),
-              [dash.dependencies.Input('dropdown', 'value')])
-def display_value(value):
-    return 'You have selected "{}"'.format(value)
 
 if __name__ == '__main__':
     app.run_server(debug=True)
