@@ -4,6 +4,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 
 import pandas as pd
+import numpy as np
 
 df = pd.read_csv('station-metadata-processed.csv')
 
@@ -44,20 +45,7 @@ app.layout = html.Div([
             html.H6('Province'),
             dcc.Dropdown(
                 id='province',
-                options=[
-                    {'label': "Alberta",'value':"AB"},
-                    {'label': "British Columbia",'value':"BC"},
-                    {'label': "Manitoba",'value':"MB"},
-                    {'label': "New Brunswick",'value':"NB"},
-                    {'label': "Newfoundland and Labrador",'value':"NL"},
-                    {'label': "Northwest Territories", 'value': "NT"},
-                    {'label': "Nova Scotia",'value':"NS"},
-                    {'label': "Nunavut", 'value': "NU"},
-                    {'label': "Ontario",'value':"ON"},
-                    {'label': "Prince Edward Island",'value':"PE"},
-                    {'label': "Quebec",'value':"QC"},
-                    {'label': "Saskatchewan",'value':"SK"},
-                    {'label': "Yukon",'value':"YT"},
+                options=[{'label': province, 'value': province} for province in df.Province.unique()
                 ]
             ),
             html.H6('Frequency'),
@@ -70,9 +58,9 @@ app.layout = html.Div([
                 ]
             ),
             html.H6('Start Year'),
-            dcc.Input(id='startyear',value='Enter a Start Year',type='text'),
+            dcc.Input(id='startyear',value='1900',type='text'),
             html.H6('End Year'),
-            dcc.Input(id='endyear', value='Enter a End Year', type='text'),
+            dcc.Input(id='endyear', value='2019', type='text'),
             ], className="six columns"),
 
         html.Div([
@@ -97,14 +85,35 @@ def update_output_div(clickData):
 
 @app.callback(
     Output(component_id='graph',component_property='figure'),
-    [Input(component_id='province',component_property='value')]
+    [Input(component_id='province',component_property='value'),
+     Input(component_id='startyear',component_property='value')]
 )
-def update_graph(options):
-    if options is None:
-        return 'None'
+def update_graph(prov,startyear):
+    if prov is None and startyear is None:
+        df_filter = df
+    elif prov is not None and startyear is None:
+        df_filter = df[df.Province==prov]
+    elif prov is None and startyear is not None:
+        df_filter = df[df['First Year']>np.int64(startyear)]
     else:
-        df_filter = df[df.Province==options]
-        return go.Scattermapbox(lat=df_filter.Latitude,lon=df_filter.Longitude,text=df_filter.Name)
+        df_filter = df[(df.Province==prov) & (df['First Year']>float(startyear))]
+
+    return {
+        'data': [{
+            'lat': df_filter.Latitude, 'lon': df_filter.Longitude, 'type': 'scattermapbox','text': df_filter.Name
+        }],
+        'layout': {
+            'mapbox': {
+                'style': 'basic',
+                'center': {'lat':59,'lon':-97},
+                'zoom': 2.5,
+                'accesstoken': 'pk.eyJ1IjoiZGxodXJsZXkiLCJhIjoiY2sya2xrMTJqMWFjMzNucXB3bnp1MXd0ZyJ9.UBKniAsr5Li1Yv5dJOP5yQ'
+            },
+            'margin': {
+                'l': 0, 'r': 0, 'b': 0, 't': 0
+            },
+        }
+    }
 
 if __name__ == '__main__':
     app.run_server(debug=True)
