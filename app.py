@@ -58,14 +58,14 @@ app.layout = html.Div([
                 ]
             ),
             html.H6('Start Year'),
-            dcc.Input(id='startyear',value='1900',type='text'),
+            dcc.Input(id='startyear',value='1840',type='text'),
             html.H6('End Year'),
             dcc.Input(id='endyear', value='2019', type='text'),
             ], className="six columns"),
 
         html.Div([
             html.Button('Download Data', id='button')
-        ], className="six columns")
+        ], className="two columns")
         ], className="row")
     ])
 
@@ -86,17 +86,20 @@ def update_output_div(clickData):
 @app.callback(
     Output(component_id='graph',component_property='figure'),
     [Input(component_id='province',component_property='value'),
-     Input(component_id='startyear',component_property='value')]
+     Input(component_id='startyear',component_property='value'),
+     Input(component_id='endyear',component_property='value')]
 )
-def update_graph(prov,startyear):
-    if prov is None and startyear is None:
-        df_filter = df
-    elif prov is not None and startyear is None:
-        df_filter = df[df.Province==prov]
-    elif prov is None and startyear is not None:
-        df_filter = df[df['First Year']>np.int64(startyear)]
+def update_graph(prov,startyear,endyear):
+
+    if startyear and endyear is not None:
+        df_filter = df[(df['First Year']>=np.int64(startyear)) & (df['Last Year']<=np.int64(endyear))]
     else:
-        df_filter = df[(df.Province==prov) & (df['First Year']>float(startyear))]
+        df_filter = df
+
+    if prov is None:
+        df_filter = df_filter
+    elif prov is not None:
+        df_filter = df_filter[df_filter.Province==prov]
 
     return {
         'data': [{
