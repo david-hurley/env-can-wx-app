@@ -17,14 +17,14 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 app.layout = html.Div([
     html.Div([
         html.Div([
-            html.H3('Environment Canada Weather Stations'),
+            html.H3('Environment Canada Weather Station Map'),
             dcc.Graph(
                 id='graph',
                 style={'height': 600
                        },
                 figure={
                         'data': [{
-                            'lat': df.Latitude, 'lon': df.Longitude, 'type': 'scattermapbox','text': df.Name
+                            'lat': df.Latitude, 'lon': df.Longitude, 'type': 'scattermapbox', 'text': df.Name
                         }],
                         'layout': {
                             'mapbox': {
@@ -42,31 +42,35 @@ app.layout = html.Div([
 
         html.Div([
             html.H3('Map Toggles'),
-            html.H6('Station Name'),
-            dcc.Input(id='stname',value='Select or Enter Station Name',type='text'),
-            html.H6('Province'),
+            html.H6('Province:'),
             dcc.Dropdown(
                 id='province',
                 options=[{'label': province, 'value': province} for province in df.Province.unique()
                 ]
             ),
-            html.H6('Frequency'),
+            html.H6('Data Frequency:'),
             dcc.Dropdown(
                 id='freq',
-                options=[
-                    {'label': "Hourly", 'value': "HR"},
-                    {'label': "Daily", 'value': "DY"},
-                    {'label': "Monthly", 'value': "MT"}
+                options=[{'label': frequency, 'value': frequency} for frequency in ['Hourly', 'Daily', 'Monthly']
                 ]
             ),
-            html.H6('Start Year'),
-            dcc.Input(id='startyear', value='1840', type='text'),
-            html.H6('End Year'),
-            dcc.Input(id='endyear', value='2019', type='text'),
+            html.H6('Data Available Between:'),
+            dcc.Input(id='start_year', value='1840', type='text'),
+            dcc.Input(id='end_year', value='2019', type='text'),
+            html.H6('Distance Filter:'),
+            dcc.Input(id='lat',value='49.50',type='text'),
+            dcc.Input(id='lon',value='-123.50',type='text'),
+            dcc.Dropdown(
+                id='radius',
+                options=[{'label':radius, 'value': radius} for radius in ['10','25','50','100']],
+                placeholder='Kilometers Away From'
+            ),
+            html.H6('Station Name:'),
+            dcc.Input(id='stname', value='Select or Enter Station Name', type='text', autoComplete='on'),
             ], className="six columns"),
 
         html.Div([
-            html.H1(''),
+            html.H3('Data Download'),
             html.A('Download Data', id='button')
         ], className="six columns")
         ], className="row")
@@ -85,15 +89,16 @@ def update_output_div(clickData):
 @app.callback(
     Output(component_id='graph', component_property='figure'),
     [Input(component_id='province', component_property='value'),
-     Input(component_id='startyear', component_property='value'),
-     Input(component_id='endyear', component_property='value'),
-     Input(component_id='freq', component_property='value')]
+     Input(component_id='start_year', component_property='value'),
+     Input(component_id='end_year', component_property='value'),
+     Input(component_id='freq', component_property='value'),
+     Input(component_id='lat', component_property='value'),
+     Input(component_id='lon', component_property='value'),
+     Input(component_id='radius', component_property='value')]
 )
-def update_graph(prov,startyear,endyear,freq):
-
-    print(freq)
-    if startyear and endyear:
-        df_filter = df[(df['First Year'] >= np.int64(startyear)) & (df['Last Year'] <= np.int64(endyear))]
+def update_graph(prov, start_year, end_year, freq, lat_filter, lon_filter, radius_filter):
+    if start_year and end_year:
+        df_filter = df[(df['First Year'] <= np.int64(end_year)) & (df['Last Year'] >= np.int64(start_year))]
     else:
         df_filter = df
 
@@ -102,18 +107,30 @@ def update_graph(prov,startyear,endyear,freq):
     else:
         df_filter = df_filter[df_filter.Province == prov]
 
-    if freq == 'HR':
+    if freq == 'Hourly':
         df_filter = df_filter[df_filter['HLY First Year'] > 0]
-    elif freq == 'DY':
+    elif freq == 'Daily':
         df_filter = df_filter[df_filter['DLY First Year'] > 0]
-    elif freq == 'MT':
+    elif freq == 'Monthly':
         df_filter = df_filter[df_filter['MLY First Year'] > 0]
+    else:
+        df_filter = df_filter
+
+    if radius_filter and lat_filter and lon_filter:
+        try:
+            lat1, lon1 = np.radians([np.float64(lat_filter),np.float64(lon_filter)])
+            lat2, lon2 = np.radians([df_filter.Latitude, df_filter.Longitude])
+            a = np.sin((lat2 - lat1) / 2.0) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin((lon2 - lon1) / 2.0) ** 2
+            distance = 6371 * 2 * np.arcsin(np.sqrt(a))
+            df_filter = df_filter[distance <= np.float64(radius_filter)]
+        except:
+            print('No Stations')
     else:
         df_filter = df_filter
 
     return {
         'data': [{
-            'lat': df_filter.Latitude, 'lon': df_filter.Longitude, 'type': 'scattermapbox','text': df_filter.Name
+            'lat': df_filter.Latitude, 'lon': df_filter.Longitude, 'type': 'scattermapbox', 'text': df_filter.Name
         }],
         'layout': {
             'mapbox': {
@@ -139,4 +156,4 @@ def download_data(filter_value):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, port=8000)
