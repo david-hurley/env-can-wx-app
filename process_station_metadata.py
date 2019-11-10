@@ -9,12 +9,17 @@ df.head()
 # Function to process data
 def process_data(data):
     data.drop(columns=['WMO ID','TC ID','Latitude','Longitude'],inplace=True)
+    data.replace(np.nan,-999,inplace=True)
     data.rename(columns={'Latitude (Decimal Degrees)':'Latitude',
                          'Longitude (Decimal Degrees)':'Longitude',
-                         'Elevation (m)':'Elevation'},inplace=True)
-    data.replace(np.nan,-999,inplace=True)
-    col_float_to_int = ['Elevation', 'First Year', 'Last Year', 'HLY First Year',
-                        'HLY Last Year', 'DLY First Year', 'DLY Last Year', 'MLY First Year','MLY Last Year']
+                         'HLY First Year':'First Year (Hourly)',
+                         'HLY Last Year':'Last Year (Hourly)',
+                         'DLY First Year':'First Year (Daily)',
+                         'DLY Last Year':'Last Year (Daily)',
+                         'MLY First Year':'First Year (Monthly)',
+                         'MLY Last Year':'Last Year (Monthly)'}, inplace=True)
+    col_float_to_int = ['Elevation (m)', 'First Year', 'Last Year', 'First Year (Hourly)',
+                        'Last Year (Hourly)', 'First Year (Daily)', 'Last Year (Daily)', 'First Year (Monthly)','Last Year (Monthly)']
     data[col_float_to_int] = data[col_float_to_int].astype(int)
     return data
 
@@ -23,4 +28,4 @@ df_proc = process_data(df)
 df_proc.head()
 
 # Export data to CSV
-df_proc.to_csv('station-metadata-processed.csv',index=False)
+#df_proc.to_csv('station-metadata-processed.csv',index=False)

@@ -7,7 +7,7 @@ from pages import home_page, graph_page
 
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
-    html.Div(id='page-content')
+    html.Div(id='page-content'),
 ])
 
 @app.callback(Output('page-content', 'children'),
@@ -19,4 +19,4 @@ def display_page(pathname):
         return home_page.layout
 
 if __name__ == '__main__':
-    app.run_server(debug=True,port=8100)
+    app.run_server(debug=True,port=8200)

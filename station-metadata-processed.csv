@@ -1,4 +1,4 @@
-Name,Province,Climate ID,Station ID,Latitude,Longitude,Elevation,First Year,Last Year,HLY First Year,HLY Last Year,DLY First Year,DLY Last Year,MLY First Year,MLY Last Year
+Name,Province,Climate ID,Station ID,Latitude,Longitude,Elevation (m),First Year,Last Year,First Year (Hourly),Last Year (Hourly),First Year (Daily),Last Year (Daily),First Year (Monthly),Last Year (Monthly)
 ACTIVE PASS,BRITISH COLUMBIA,1010066,14,48.87,-123.28,4,1984,1996,-999,-999,1984,1996,1984,1996
 ALBERT HEAD,BRITISH COLUMBIA,1010235,15,48.4,-123.48,17,1971,1995,-999,-999,1971,1995,1971,1995
 BAMBERTON OCEAN CEMENT,BRITISH COLUMBIA,1010595,16,48.58,-123.52,85,1961,1980,-999,-999,1961,1980,1961,1980
