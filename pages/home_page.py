@@ -14,7 +14,6 @@ from datetime import datetime
 
 # Environment Canada Station Metadata
 df = pd.read_csv('station-metadata-processed.csv')
-df.replace(-999,'N/A',inplace=True)
 
 # URL Path to Bulk Data Download From Environment Canada
 url_bulk_data_link = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.html?' \
@@ -42,6 +41,7 @@ def great_circle_distance(lat_user, lon_user, lat_station, lon_station):
 
 def station_map(stations, lat_selected, lon_selected, name_selected, color):
     return {'data': [
+                # Station Data
                 {'type': 'scattermapbox',
                  'lat': stations.Latitude,
                  'lon': stations.Longitude,
@@ -49,7 +49,7 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
                  'text': stations.Name,
                  'marker': {'color': color}
                 },
-
+                # Highlight Selected Station
                 {'type': 'scattermapbox',
                  'lat': [lat_selected],
                  'lon': [lon_selected],
@@ -61,7 +61,7 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
         'layout': {
             'showlegend': False,
             'uirevision': 'static',
-            'height': 500,
+            'height': 450,
             'mapbox': {
                 'style': 'basic',
                 'center': {'lat': 59, 'lon': -97},
@@ -99,11 +99,11 @@ layout = html.Div([
                       figure=station_map(df, [], [], [], 'blue'),
                       style={'border': '2px black solid'}),
             html.Br(),
-            html.Label(id='selected-station', children='Select a Station',
+            html.Label(id='selected-station', children='Selected Station Information (Multiple Stations at the Same Location May Exist)',
                     style={'textAlign': 'left', 'font-weight':'bold'}),
             dash_table.DataTable(id='selected-station-table',
-                                 columns=[{"name": col, "id": col} for col in df.columns[1:]],
-                                 data=[{col: '' for col in df.columns[1:]}],
+                                 columns=[{"name": col, "id": col} for col in df.columns],
+                                 data=[],
                                  style_table={'overflowX': 'scroll'},
                                  style_header={'border': '1px solid black',
                                                'backgroundColor': 'rgb(200, 200, 200)'},
@@ -151,23 +151,31 @@ layout = html.Div([
         # Data Download Column
         html.Div([
             html.Div([
-                html.H6('Download Records for Selected Station'),
-            ], style={'textAlign': 'center'}),
+                html.Label('Download Start'),
+            ], style={'textAlign': 'left'}),
             html.Div([
-                dcc.DatePickerRange(
-                    start_date_placeholder_text="Start Period",
-                    end_date_placeholder_text="End Period",
-                    calendar_orientation='vertical',
-                )
-            ])
+                dcc.DatePickerRange(id='date_to_download',
+                                    start_date_placeholder_text="Start Period",
+                                    end_date_placeholder_text="End Period",
+                                    with_portal=True,
+                                    )
+            ]),
+            dcc.Dropdown(id='start_year',options=[{'label': year, 'value': year} for year in range(1840,2020,1)],
+                         placeholder='Year', style={'width': '100px'}),
+            html.Div([
+                html.Label('Downloading HOURLY data for ACTIVE PASS for the period AUGUST 01 2019 to JULY 31 2019')
+            ], className='four columns'),
+            html.Div(id='hidden-storage', style={'display': 'none'})
         ], className='five columns')
     ], className='row', style={'padding-top': '10px'}),
 ])
 
 
 ######################################### INTERACTION CALLBACKS ########################################################
+
+# Data Filter
 @app.callback(
-    Output(component_id='station-map',component_property='figure'),
+    Output(component_id='hidden-storage', component_property='children'),
     [Input(component_id='province', component_property='value'),
      Input(component_id='frequency', component_property='value'),
      Input(component_id='first_year', component_property='value'),
@@ -175,53 +183,63 @@ layout = html.Div([
      Input(component_id='latitude', component_property='value'),
      Input(component_id='longitude', component_property='value'),
      Input(component_id='radius', component_property='value'),
-     Input(component_id='stn_name', component_property='value'),
-     Input(component_id='station-map', component_property='clickData')]
+     Input(component_id='stn_name', component_property='value')]
 )
-def map_filter(province,frequency,start,end,lat,lon,radius,stn_name,click_highlight):
-
+def data_filter(province, frequency, start, end, lat, lon, radius, stn_name):
     # Province Filter
     if province is None:
-        df_map_filter = df
+        df_filter = df
     else:
-        df_map_filter = df[df.Province == province]
+        df_filter = df[df.Province == province]
 
     # Frequency Filter
     if frequency == 'Hourly':
-        df_map_filter = df_map_filter[df_map_filter['First Year (Hourly)'] != 'N/A']
+        df_filter = df_filter[df_filter['First Year (Hourly)'] != 'N/A']
     elif frequency == 'Daily':
-        df_map_filter = df_map_filter[df_map_filter['First Year (Daily)'] != 'N/A']
+        df_filter = df_filter[df_filter['First Year (Daily)'] != 'N/A']
     elif frequency == 'Monthly':
-        df_map_filter = df_map_filter[df_map_filter['First Year (Monthly)'] != 'N/A']
+        df_filter = df_filter[df_filter['First Year (Monthly)'] != 'N/A']
     else:
-        df_map_filter = df_map_filter
+        df_filter = df_filter
 
     # Date Filter
     if start and end:
-        df_map_filter = df_map_filter[(df_map_filter['First Year'] <= np.int64(end)) & (df_map_filter['Last Year'] >= np.int64(start))]
+        df_filter = df_filter[(df_filter['First Year'] <= np.int64(end)) & (df_filter['Last Year'] >= np.int64(start))]
     else:
-        df_map_filter = df_map_filter
+        df_filter = df_filter
 
     # Distance Filter
     if lat and lon and radius:
         try:
-            df_map_filter = df_map_filter[
-                great_circle_distance(lat,lon,df_map_filter.Latitude,df_map_filter.Longitude) <= np.float64(radius)]
+            df_filter = df_filter[
+                great_circle_distance(lat, lon, df_filter.Latitude, df_filter.Longitude) <= np.float64(radius)]
         except:
-            print('No Stations')
+            df_map_filter = []
 
     # Name Filter
     if stn_name:
-        df_map_filter = df_map_filter[df_map_filter.Name.str.contains(stn_name.upper())]
+        df_filter = df_filter[df_filter.Name.str.contains(stn_name.upper())]
     else:
-        df_map_filter = df_map_filter
+        df_filter = df_filter
+
+    return df_filter.to_json(date_format='iso', orient='split')
+
+# Apply Filter Controls to Map
+@app.callback(
+    Output(component_id='station-map',component_property='figure'),
+    [Input(component_id='hidden-storage', component_property='children'),
+     Input(component_id='station-map', component_property='clickData')]
+)
+def map_filter(filter_data,click_highlight):
+
+    df_map_filter = pd.read_json(filter_data, orient='split')
 
     # Highlight Click Data
     if click_highlight and not df_map_filter[(df_map_filter.Latitude == click_highlight['points'][0]['lat']) &
-                         (df_map_filter.Longitude == click_highlight['points'][0]['lon'])].empty:
-            lat_selected = click_highlight['points'][0]['lat']
-            lon_selected = click_highlight['points'][0]['lon']
-            name_selected = click_highlight['points'][0]['text']
+                                             (df_map_filter.Longitude == click_highlight['points'][0]['lon'])].empty:
+        lat_selected = click_highlight['points'][0]['lat']
+        lon_selected = click_highlight['points'][0]['lon']
+        name_selected = click_highlight['points'][0]['text']
     else:
         lat_selected = []
         lon_selected = []
@@ -229,37 +247,38 @@ def map_filter(province,frequency,start,end,lat,lon,radius,stn_name,click_highli
 
     return station_map(df_map_filter, lat_selected, lon_selected, name_selected, 'blue')
 
+# Apply Filter Controls to Table
 @app.callback(
     Output(component_id='selected-station-table', component_property='data'),
     [Input(component_id='station-map', component_property='clickData'),
-     Input(component_id='frequency', component_property='value')]
+     Input(component_id='hidden-storage', component_property='children')]
 )
-def populate_table(selected_station,frequency):
-    try:
-        df_stn_info = df[(df.Latitude == selected_station['points'][0]['lat']) &
-                         (df.Longitude == selected_station['points'][0]['lon'])]
-        if frequency == 'Hourly':
-            return df_stn_info[df_stn_info['First Year (Hourly)'] != 'N/A'].loc[1:].to_dict('records')
-        elif frequency == 'Daily':
-            return df_stn_info[df_stn_info['First Year (Daily)'] != 'N/A'].loc[1:].to_dict('records')
-        elif frequency == 'Monthly':
-            return df_stn_info[df_stn_info['First Year (Monthly)'] != 'N/A'].loc[1:].to_dict('records')
-        else:
-            return df_stn_info.loc[1:].to_dict('records')
-    except:
-        df_stn_info = [{col: '' for col in df.columns[1:]}]
-        return df_stn_info
+def table_filter(selected_station, filter_data):
 
-@app.callback(
-    Output(component_id='selected-station', component_property='children'),
-    [Input(component_id='selected-station-table', component_property='data')]
-)
-def update_table_name(table_data):
-    try:
-        length_table_data = len(table_data)
-        if length_table_data == 1:
-            return 'Selected Station Name: "{}"'.format(table_data[0]['Name'])
-        else:
-            return 'Selected Station Name: "{}" (Multiple Records Exist at This Location)'.format(table_data[0]['Name'])
-    except:
-        return 'Select a Station'
+    df_table_filter = pd.read_json(filter_data, orient='split')
+
+    if selected_station and not df_table_filter[(df_table_filter.Latitude == selected_station['points'][0]['lat']) &
+                           (df_table_filter.Longitude == selected_station['points'][0]['lon'])].empty:
+        return df_table_filter[(df_table_filter.Latitude == selected_station['points'][0]['lat']) &
+                               (df_table_filter.Longitude == selected_station['points'][0]['lon'])].to_dict('records')
+    else:
+        return []
+
+# Set Date To Download Range Based On Data
+
+
+
+
+# @app.callback(
+#     Output(component_id='selected-station', component_property='children'),
+#     [Input(component_id='selected-station-table', component_property='data')]
+# )
+# def update_table_name(table_data):
+#     try:
+#         length_table_data = len(table_data)
+#         if length_table_data == 1:
+#             return 'Selected Station Name: "{}"'.format(table_data[0]['Name'])
+#         else:
+#             return 'Selected Station Name: "{}" (Multiple Records Exist at This Location)'.format(table_data[0]['Name'])
+#     except:
+#         return 'Select a Station'

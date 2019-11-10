@@ -21,6 +21,9 @@ def process_data(data):
     col_float_to_int = ['Elevation (m)', 'First Year', 'Last Year', 'First Year (Hourly)',
                         'Last Year (Hourly)', 'First Year (Daily)', 'Last Year (Daily)', 'First Year (Monthly)','Last Year (Monthly)']
     data[col_float_to_int] = data[col_float_to_int].astype(int)
+    data = data[data.Longitude < -52.5]
+    data = data[data.Longitude > -141.5]
+    data.replace(-999,'N/A',inplace=True)
     return data
 
 # Process data
@@ -28,4 +31,4 @@ df_proc = process_data(df)
 df_proc.head()
 
 # Export data to CSV
-#df_proc.to_csv('station-metadata-processed.csv',index=False)
+df_proc.to_csv('station-metadata-processed.csv',index=False)
