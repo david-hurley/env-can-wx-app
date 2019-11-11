@@ -26,8 +26,8 @@ def great_circle_distance(lat_user, lon_user, lat_station, lon_station):
     Computes the distance between two locations using the Haversine Formula
     :param lat_user: user defined latitude (text)
     :param lon_user: user defined longitude (text)
-    :param lat_stations: station latitude (array, float64)
-    :param lon_stations: station longitude (array, float64)
+    :param lat_station: station latitude (array, float64)
+    :param lon_station: station longitude (array, float64)
     :return: distance from user locations to stations
     '''
     lat1, lon1 = np.radians([np.float64(lat_user), np.float64(lon_user)])
@@ -39,6 +39,7 @@ def great_circle_distance(lat_user, lon_user, lat_station, lon_station):
 
 ######################################### PLOTS ########################################################################
 
+# Plot the station map
 def station_map(stations, lat_selected, lon_selected, name_selected, color):
     return {'data': [
                 # Station Data
@@ -57,8 +58,7 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
                  'text': [name_selected],
                  'marker': {'color': 'red'}
                  }
-            ],
-        'layout': {
+            ], 'layout': {
             'showlegend': False,
             'uirevision': 'static',
             'height': 450,
@@ -66,7 +66,8 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
                 'style': 'basic',
                 'center': {'lat': 59, 'lon': -97},
                 'zoom': 2.5,
-                'accesstoken': 'pk.eyJ1IjoiZGxodXJsZXkiLCJhIjoiY2sya2xrMTJqMWFjMzNucXB3bnp1MXd0ZyJ9.UBKniAsr5Li1Yv5dJOP5yQ'
+                'accesstoken':
+                    'pk.eyJ1IjoiZGxodXJsZXkiLCJhIjoiY2sya2xrMTJqMWFjMzNucXB3bnp1MXd0ZyJ9.UBKniAsr5Li1Yv5dJOP5yQ'
                 },
             'margin': {
                 'l': 0, 'r': 0, 'b': 0, 't': 0
@@ -76,98 +77,96 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
 
 ######################################### LAYOUT #######################################################################
 
-app.css.append_css({
-    'external_url': "https://codepen.io/chriddyp/pen/bWLwgP.css"
-})
-
-layout = html.Div([
-    # Title Row
+layout = html.Div([ #Overall container
+    # Header container
     html.Div([
-        # Title Column
-        html.Div([
-            html.H2("Super Speedy Environment Canada Weather Download",
-                    style={'display': 'inline-block'}),
-            ], className='twelve columns', style={'textAlign': 'center'})
-    ], className='row', style={'background': '#DCDCDC', 'border': '2px black solid'}),
+        html.H2("Super Speedy Environment Canada Weather Download")
+    ], className='twelve columns', style={'textAlign': 'center', 'background': '#DCDCDC', 'border': '2px black solid'}),
 
-    # Map and Toggles Row
+    # Filtering, map, table, download container
     html.Div([
-        # Map Column
+        # Map and table container
         html.Div([
-            # Map of stations
-            dcc.Graph(id='station-map',
-                      figure=station_map(df, [], [], [], 'blue'),
-                      style={'border': '2px black solid'}),
-            html.Br(),
-            html.Label(id='selected-station', children='Selected Station Information (Multiple Stations at the Same Location May Exist)',
-                    style={'textAlign': 'left', 'font-weight':'bold'}),
-            dash_table.DataTable(id='selected-station-table',
-                                 columns=[{"name": col, "id": col} for col in df.columns],
-                                 data=[],
-                                 style_table={'overflowX': 'scroll'},
-                                 style_header={'border': '1px solid black',
-                                               'backgroundColor': 'rgb(200, 200, 200)'},
-                                 style_cell={'border': '1px solid grey'},
-                                 row_selectable='single'),
-        ], className='seven columns'),
-
-        # Toggles Column
-        html.Div([
+            # Map container
             html.Div([
-                html.H6("Station Name:"),
-                dcc.Input(id='stn_name',value='',type='text',placeholder='Enter Station Name', style={'width': '300px'}),
-                html.H6("Province:"),
-                dcc.Dropdown(id='province',
-                             options=[{'label': province, 'value': province} for province in df.Province.unique()],
-                             style={'width': '400px'}),
-                html.H6("Data Frequency:"),
-                dcc.Dropdown(id='frequency',
-                             options=[{'label': frequency, 'value': frequency} for frequency in ['Hourly', 'Daily',
-                                                                                                 'Monthly']],
-                             style={'width': '400px'}),
-                html.H6("Data Available Between:"),
-                dcc.Dropdown(id='first_year',
-                             options=[{'label': str(year), 'value': str(year)} for year in
-                                      range(1840,datetime.now().year+1,1)],
-                             placeholder='First Year',
-                             style={'width': '250px', 'display': 'inline-block'}),
-                dcc.Dropdown(id='last_year',
-                             options=[{'label': str(year), 'value': str(year)} for year in
-                                      range(1840, datetime.now().year + 1, 1)],
-                             placeholder='Last Year',
-                             style={'width': '250px', 'display': 'inline-block', 'padding-left': '20px'}),
-                html.H6("Distance Filter:"),
-                dcc.Input(id='latitude',value='',type='text',placeholder='Latitude',
-                          style={'width': '100px', 'display': 'inline-block'}),
-                dcc.Input(id='longitude',value='',type='text',placeholder='Longitude',
-                          style={'width': '100px', 'display': 'inline-block'}),
-                dcc.Dropdown(id='radius',
-                             options=[{'label': radius, 'value': radius} for radius in ['10', '25', '50', '100']],
-                             placeholder='Kilometers Away From',
-                             style={'width':'100px', 'display': 'inline-block'})
-            ], style={'textAlign': 'left'})
-        ], className='five columns', style={'border': '2px black solid', 'padding-left': '20px'}),
-
-        # Data Download Column
-        html.Div([
-            html.Div([
-                html.Label('Download Start'),
-            ], style={'textAlign': 'left'}),
-            html.Div([
-                dcc.DatePickerRange(id='date_to_download',
-                                    start_date_placeholder_text="Start Period",
-                                    end_date_placeholder_text="End Period",
-                                    with_portal=True,
-                                    )
+                # Map of stations
+                dcc.Graph(id='station-map',
+                          figure=station_map(df, [], [], [], 'blue'),
+                          style={'border': '2px black solid'})
             ]),
-            dcc.Dropdown(id='start_year',options=[{'label': year, 'value': year} for year in range(1840,2020,1)],
-                         placeholder='Year', style={'width': '100px'}),
+            # Table container
             html.Div([
-                html.Label('Downloading HOURLY data for ACTIVE PASS for the period AUGUST 01 2019 to JULY 31 2019')
-            ], className='four columns'),
-            html.Div(id='hidden-storage', style={'display': 'none'})
-        ], className='five columns')
-    ], className='row', style={'padding-top': '10px'}),
+                html.Label('Selected Station Information (Multiple Stations at the Same Location May Exist)', style={
+                    'textAlign': 'left', 'font-weight': 'bold'}),
+                # List of selected station features
+                dash_table.DataTable(id='selected-station-table',
+                                     columns=[{"name": col, "id": col} for col in df.columns],
+                                     data=[],
+                                     style_table={'overflowX': 'scroll'},
+                                     style_header={'border': '1px solid black',
+                                                   'backgroundColor': 'rgb(200, 200, 200)'},
+                                     style_cell={'border': '1px solid grey'},
+                                     row_selectable='single')
+            ], style={'margin-top': '1rem'}),
+        ], className='seven columns', style={'margin-top': '1rem'}),
+
+        # Filtering and download container
+        html.Div([
+            #Filtering container
+            html.Div([
+                html.Div([
+                    html.H6("Station Name:"),
+                    dcc.Input(id='stn_name', value='', type='text', placeholder='Enter Station Name',
+                              style={'width': '50%'})
+                ], style={'margin-left': '1rem'}),
+                html.Div([
+                    html.H6("Province:"),
+                    dcc.Dropdown(id='province',
+                                 options=[{'label': province, 'value': province} for province in df.Province.unique()],
+                                 style={'width': '90%'})
+                ], style={'margin-left': '1rem'}),
+                html.Div([
+                    html.H6("Data Frequency:"),
+                    dcc.Dropdown(id='frequency',
+                                 options=[{'label': frequency, 'value': frequency} for frequency in ['Hourly', 'Daily',
+                                                                                                     'Monthly']],
+                                 style={'width': '90%'})
+                ], style={'margin-left': '1rem'}),
+                html.Div([
+                    html.H6("Data Available Between:"),
+                    html.Div([
+                        dcc.Dropdown(id='first_year',
+                                     options=[{'label': str(year), 'value': str(year)} for year in range(1840, datetime.now().year+1, 1)],
+                                     placeholder='First Year')
+                    ], style={'width': '40%', 'display': 'inline-block'}),
+                    html.Div([
+                        dcc.Dropdown(id='last_year',
+                                     options=[{'label': str(year), 'value': str(year)} for year in range(1840, datetime.now().year + 1, 1)],
+                                     placeholder='Last Year')
+                    ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '1rem'})
+                ], style={'margin-left': '1rem'}),
+                html.Div([
+                    html.H6("Distance Filter:"),
+                    html.Div([
+                        dcc.Input(id='latitude', value='', type='text', placeholder='Latitude', style={'width': 150})
+                    ], style={'display': 'inline-block', 'vertical-align': 'middle'}),
+                    html.Div([
+                        dcc.Input(id='longitude', value='', type='text', placeholder='Longitude', style={'width': 150})
+                    ], style={'display': 'inline-block', 'margin-left': '1rem', 'vertical-align': 'middle'}),
+                    html.Div([
+                        dcc.Dropdown(id='radius',
+                                     options=[{'label': radius, 'value': radius} for radius in ['10', '25', '50', '100']],
+                                     placeholder='Kilometers From Location')
+                    ], style={'width': '20%', 'display': 'inline-block', 'vertical-align': 'middle', 'margin-left': '1rem'})
+                ], style={'margin-left': '1rem', 'margin-bottom': '1rem'})
+            ], style={'margin-left': '1rem', 'margin-bottom': '1rem', 'border': '2px black solid', 'textAlign': 'left'}),
+
+            # Download Container
+            html.Div([
+                html.Label('Download Start')
+            ])
+        ], className='five columns', style={'margin-top': '1rem'})
+    ], className='row')
 ])
 
 
@@ -263,22 +262,3 @@ def table_filter(selected_station, filter_data):
                                (df_table_filter.Longitude == selected_station['points'][0]['lon'])].to_dict('records')
     else:
         return []
-
-# Set Date To Download Range Based On Data
-
-
-
-
-# @app.callback(
-#     Output(component_id='selected-station', component_property='children'),
-#     [Input(component_id='selected-station-table', component_property='data')]
-# )
-# def update_table_name(table_data):
-#     try:
-#         length_table_data = len(table_data)
-#         if length_table_data == 1:
-#             return 'Selected Station Name: "{}"'.format(table_data[0]['Name'])
-#         else:
-#             return 'Selected Station Name: "{}" (Multiple Records Exist at This Location)'.format(table_data[0]['Name'])
-#     except:
-#         return 'Select a Station'
