@@ -31,4 +31,5 @@ df_proc = process_data(df)
 df_proc.head()
 
 # Export data to CSV
+print(df_proc.head())
 df_proc.to_csv('station-metadata-processed.csv',index=False)

@@ -14,6 +14,7 @@ from datetime import datetime
 
 # Environment Canada Station Metadata
 df = pd.read_csv('station-metadata-processed.csv')
+df.replace(np.nan, 'N/A', inplace=True)
 
 # URL Path to Bulk Data Download From Environment Canada
 url_bulk_data_link = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.html?' \
@@ -128,8 +129,7 @@ layout = html.Div([ #Overall container
                 html.Div([
                     html.H6("Data Frequency:"),
                     dcc.Dropdown(id='frequency',
-                                 options=[{'label': frequency, 'value': frequency} for frequency in ['Hourly', 'Daily',
-                                                                                                     'Monthly']],
+                                 options=[{'label': frequency, 'value': frequency} for frequency in ['Hourly', 'Daily', 'Monthly']],
                                  style={'width': '90%'})
                 ], style={'margin-left': '1rem'}),
                 html.Div([
@@ -165,7 +165,8 @@ layout = html.Div([ #Overall container
             html.Div([
                 html.Label('Download Start')
             ])
-        ], className='five columns', style={'margin-top': '1rem'})
+        ], className='five columns', style={'margin-top': '1rem'}),
+        html.Div(id='hidden-storage', style={'display': 'none'})
     ], className='row')
 ])
 
@@ -229,7 +230,7 @@ def data_filter(province, frequency, start, end, lat, lon, radius, stn_name):
     [Input(component_id='hidden-storage', component_property='children'),
      Input(component_id='station-map', component_property='clickData')]
 )
-def map_filter(filter_data,click_highlight):
+def map_filter(filter_data, click_highlight):
 
     df_map_filter = pd.read_json(filter_data, orient='split')
 
