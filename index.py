@@ -19,4 +19,4 @@ def display_page(pathname):
         return home_page.layout
 
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8000)
+    app.run_server(debug=True, port=8100)

@@ -81,8 +81,13 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
 layout = html.Div([ #Overall container
     # Header container
     html.Div([
-        html.H2("Super Speedy Environment Canada Weather Download")
-    ], className='twelve columns', style={'textAlign': 'center', 'background': '#DCDCDC', 'border': '2px black solid'}),
+        html.Div([
+            html.H3("Super Speedy Environment Canada Weather Download")
+        ], style={'display': 'inline-block', 'align-self': 'center', 'margin': '0 auto'}),
+        html.Div([
+            dcc.Link('About', href='/pages/about')
+        ], style={'textAlign': 'right', 'display': 'inline-block', 'margin-right': '2rem', 'font-size': '20px'})
+    ], className='twelve columns', style={'background': '#DCDCDC', 'border': '2px black solid', 'display': 'flex'}),
 
     # Filtering, map, table, download container
     html.Div([
@@ -97,7 +102,7 @@ layout = html.Div([ #Overall container
             ]),
             # Table container
             html.Div([
-                html.Label('Selected Station Information (Multiple Stations at the Same Location May Exist)', style={
+                html.Label('Click on a station to view data and select in table to download', style={
                     'textAlign': 'left', 'font-weight': 'bold'}),
                 # List of selected station features
                 dash_table.DataTable(id='selected-station-table',
@@ -107,7 +112,9 @@ layout = html.Div([ #Overall container
                                      style_header={'border': '1px solid black',
                                                    'backgroundColor': 'rgb(200, 200, 200)'},
                                      style_cell={'border': '1px solid grey'},
-                                     row_selectable='single')
+                                     row_selectable='single'),
+                html.Label('(Multiple stations at the same location may exist)',
+                           style={'textAlign': 'left', 'font-weight': 'bold'})
             ], style={'margin-top': '1rem'}),
         ], className='seven columns', style={'margin-top': '1rem'}),
 
@@ -116,24 +123,24 @@ layout = html.Div([ #Overall container
             #Filtering container
             html.Div([
                 html.Div([
-                    html.H6("Station Name:"),
+                    html.Label("Station Name:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     dcc.Input(id='stn_name', value='', type='text', placeholder='Enter Station Name',
                               style={'width': '50%'})
-                ], style={'margin-left': '1rem'}),
+                ], style={'margin-left': '1rem','margin-bottom': '1rem'}),
                 html.Div([
-                    html.H6("Province:"),
+                    html.Label("Province:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     dcc.Dropdown(id='province',
                                  options=[{'label': province, 'value': province} for province in df.Province.unique()],
                                  style={'width': '90%'})
-                ], style={'margin-left': '1rem'}),
+                ], style={'margin-left': '1rem', 'margin-bottom': '1rem'}),
                 html.Div([
-                    html.H6("Data Frequency:"),
+                    html.Label("Data Frequency:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     dcc.Dropdown(id='frequency',
                                  options=[{'label': frequency, 'value': frequency} for frequency in ['Hourly', 'Daily', 'Monthly']],
                                  style={'width': '90%'})
-                ], style={'margin-left': '1rem'}),
+                ], style={'margin-left': '1rem', 'margin-bottom': '1rem'}),
                 html.Div([
-                    html.H6("Data Available Between:"),
+                    html.Label("Data Available Between:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     html.Div([
                         dcc.Dropdown(id='first_year',
                                      options=[{'label': str(year), 'value': str(year)} for year in range(1840, datetime.now().year+1, 1)],
@@ -144,9 +151,9 @@ layout = html.Div([ #Overall container
                                      options=[{'label': str(year), 'value': str(year)} for year in range(1840, datetime.now().year + 1, 1)],
                                      placeholder='Last Year')
                     ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '1rem'})
-                ], style={'margin-left': '1rem'}),
+                ], style={'margin-left': '1rem', 'margin-bottom': '1rem'}),
                 html.Div([
-                    html.H6("Distance Filter:"),
+                    html.Label("Distance Filter:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     html.Div([
                         dcc.Input(id='latitude', value='', type='text', placeholder='Latitude', style={'width': 150})
                     ], style={'display': 'inline-block', 'vertical-align': 'middle'}),
@@ -159,11 +166,61 @@ layout = html.Div([ #Overall container
                                      placeholder='Kilometers From Location')
                     ], style={'width': '20%', 'display': 'inline-block', 'vertical-align': 'middle', 'margin-left': '1rem'})
                 ], style={'margin-left': '1rem', 'margin-bottom': '1rem'})
-            ], style={'margin-left': '1rem', 'margin-bottom': '1rem', 'border': '2px black solid', 'textAlign': 'left'}),
+            ], style={'margin-bottom': '1rem', 'border': '2px black solid', 'textAlign': 'left'}),
 
             # Download Container
             html.Div([
-                html.Label('Download Start')
+                html.Div([
+                    html.Label('Download Dates:',
+                               style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
+                    html.Div([
+                        dcc.Dropdown(id='download_year_start',
+                                     options=[{'label': frequency, 'value': frequency} for frequency in
+                                              ['Hourly', 'Daily', 'Monthly']],
+                                     placeholder='Start Year')
+                    ], style={'width': '20%', 'display': 'inline-block'}),
+                    html.Div([
+                        dcc.Dropdown(id='download_month_start',
+                                     options=[{'label': frequency, 'value': frequency} for frequency in
+                                              ['Hourly', 'Daily', 'Monthly']],
+                                     placeholder='Start Month')
+                    ], style={'width': '20%', 'display': 'inline-block', 'margin-left': '1rem'}),
+                    html.Div([
+                        dcc.Dropdown(id='download_day_start',
+                                     options=[{'label': frequency, 'value': frequency} for frequency in
+                                              ['Hourly', 'Daily', 'Monthly']],
+                                     placeholder='Start Day')
+                    ], style={'width': '20%', 'display': 'inline-block', 'margin-left': '1rem'})
+                ], style={'margin-left': '1rem'}),
+                html.Div([
+                    html.Div([
+                        dcc.Dropdown(id='download_year_end',
+                                     options=[{'label': frequency, 'value': frequency} for frequency in
+                                              ['Hourly', 'Daily', 'Monthly']],
+                                     placeholder='End Year')
+                    ], style={'width': '20%', 'display': 'inline-block'}),
+                    html.Div([
+                        dcc.Dropdown(id='download_month_end',
+                                     options=[{'label': frequency, 'value': frequency} for frequency in
+                                              ['Hourly', 'Daily', 'Monthly']],
+                                     placeholder='End Month')
+                    ], style={'width': '20%', 'display': 'inline-block', 'margin-left': '1rem'}),
+                    html.Div([
+                        dcc.Dropdown(id='download_day_end',
+                                     options=[{'label': frequency, 'value': frequency} for frequency in
+                                              ['Hourly', 'Daily', 'Monthly']],
+                                     placeholder='End Day')
+                    ], style={'width': '20%', 'display': 'inline-block', 'margin-left': '1rem'})
+                ], style={'margin-left': '1rem'}),
+                html.Div([
+                    html.Label('Download Interval:',
+                               style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
+                    html.Div([
+                        dcc.Dropdown(id='frequency',
+                                     options=[{'label': frequency, 'value': frequency} for frequency in
+                                              ['Hourly', 'Daily', 'Monthly']], style={'width': '90%'})
+                    ])
+                ], style={'margin-left': '1rem'})
             ])
         ], className='five columns', style={'margin-top': '1rem'}),
         html.Div(id='hidden-storage', style={'display': 'none'})
