@@ -126,19 +126,19 @@ layout = html.Div([ #Overall container
                     html.Label("Station Name:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     dcc.Input(id='stn_name', value='', type='text', placeholder='Enter Station Name',
                               style={'width': '50%'})
-                ], style={'margin-left': '1rem','margin-bottom': '1rem'}),
+                ], style={'margin-left': '1rem','margin-bottom': '0.5rem'}),
                 html.Div([
                     html.Label("Province:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     dcc.Dropdown(id='province',
                                  options=[{'label': province, 'value': province} for province in df.Province.unique()],
                                  style={'width': '90%'})
-                ], style={'margin-left': '1rem', 'margin-bottom': '1rem'}),
+                ], style={'margin-left': '1rem', 'margin-bottom': '0.5rem'}),
                 html.Div([
                     html.Label("Data Frequency:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     dcc.Dropdown(id='frequency',
                                  options=[{'label': frequency, 'value': frequency} for frequency in ['Hourly', 'Daily', 'Monthly']],
                                  style={'width': '90%'})
-                ], style={'margin-left': '1rem', 'margin-bottom': '1rem'}),
+                ], style={'margin-left': '1rem', 'margin-bottom': '0.5rem'}),
                 html.Div([
                     html.Label("Data Available Between:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     html.Div([
@@ -151,7 +151,7 @@ layout = html.Div([ #Overall container
                                      options=[{'label': str(year), 'value': str(year)} for year in range(1840, datetime.now().year + 1, 1)],
                                      placeholder='Last Year')
                     ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '1rem'})
-                ], style={'margin-left': '1rem', 'margin-bottom': '1rem'}),
+                ], style={'margin-left': '1rem', 'margin-bottom': '0.5rem'}),
                 html.Div([
                     html.Label("Distance Filter:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     html.Div([
@@ -169,61 +169,49 @@ layout = html.Div([ #Overall container
             ], style={'margin-bottom': '1rem', 'border': '2px black solid', 'textAlign': 'left'}),
 
             # Download Container
-            html.Div([
-                html.Div([
-                    html.Label('Download Dates:',
-                               style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
-                    html.Div([
-                        dcc.Dropdown(id='download_year_start',
-                                     options=[{'label': frequency, 'value': frequency} for frequency in
-                                              ['Hourly', 'Daily', 'Monthly']],
-                                     placeholder='Start Year')
-                    ], style={'width': '20%', 'display': 'inline-block'}),
-                    html.Div([
-                        dcc.Dropdown(id='download_month_start',
-                                     options=[{'label': frequency, 'value': frequency} for frequency in
-                                              ['Hourly', 'Daily', 'Monthly']],
-                                     placeholder='Start Month')
-                    ], style={'width': '20%', 'display': 'inline-block', 'margin-left': '1rem'}),
-                    html.Div([
-                        dcc.Dropdown(id='download_day_start',
-                                     options=[{'label': frequency, 'value': frequency} for frequency in
-                                              ['Hourly', 'Daily', 'Monthly']],
-                                     placeholder='Start Day')
-                    ], style={'width': '20%', 'display': 'inline-block', 'margin-left': '1rem'})
-                ], style={'margin-left': '1rem'}),
                 html.Div([
                     html.Div([
-                        dcc.Dropdown(id='download_year_end',
-                                     options=[{'label': frequency, 'value': frequency} for frequency in
-                                              ['Hourly', 'Daily', 'Monthly']],
-                                     placeholder='End Year')
-                    ], style={'width': '20%', 'display': 'inline-block'}),
-                    html.Div([
-                        dcc.Dropdown(id='download_month_end',
-                                     options=[{'label': frequency, 'value': frequency} for frequency in
-                                              ['Hourly', 'Daily', 'Monthly']],
-                                     placeholder='End Month')
-                    ], style={'width': '20%', 'display': 'inline-block', 'margin-left': '1rem'}),
-                    html.Div([
-                        dcc.Dropdown(id='download_day_end',
-                                     options=[{'label': frequency, 'value': frequency} for frequency in
-                                              ['Hourly', 'Daily', 'Monthly']],
-                                     placeholder='End Day')
-                    ], style={'width': '20%', 'display': 'inline-block', 'margin-left': '1rem'})
-                ], style={'margin-left': '1rem'}),
+                        html.Label('Download Dates:', style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
+                        html.Div([
+                            dcc.Dropdown(id='download_year_start',
+                                         options=[{'label': year, 'value': year} for year in ['Select A Station']],
+                                         placeholder='Start Year')
+                        ], style={'width': '45%', 'display': 'inline-block', 'margin-bottom': '1rem'}),
+                        html.Div([
+                            dcc.Dropdown(id='download_month_start',
+                                         options=[{'label': month, 'value': month} for month in ['Select A Station']],
+                                         placeholder='Start Month')
+                        ], style={'width': '45%', 'display': 'inline-block', 'margin-left': '0.5rem', 'margin-bottom': '1rem'}),
+                        html.Div([
+                            dcc.Dropdown(id='download_year_end',
+                                         options=[{'label': year, 'value': year} for year in ['Select A Station']],
+                                         placeholder='End Year')
+                        ], style={'width': '45%', 'display': 'inline-block'}),
+                        html.Div([
+                            dcc.Dropdown(id='download_month_end',
+                                         options=[{'label': month, 'value': month} for month in ['Select A Station']],
+                                         placeholder='End Month')
+                        ], style={'width': '45%', 'display': 'inline-block', 'margin-left': '0.5rem'})
+                ], style={'width': '55%', 'display': 'inline-block','margin-left': '1rem'}),
                 html.Div([
-                    html.Label('Download Interval:',
-                               style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
+                    html.Label('Download Interval:', style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
                     html.Div([
-                        dcc.Dropdown(id='frequency',
-                                     options=[{'label': frequency, 'value': frequency} for frequency in
-                                              ['Hourly', 'Daily', 'Monthly']], style={'width': '90%'})
-                    ])
-                ], style={'margin-left': '1rem'})
-            ])
+                        dcc.Dropdown(id='download_frequency',
+                                     options=[{'label': frequency, 'value': frequency} for frequency in ['Select A Station']],
+                                     placeholder='Frequency')
+                    ], style={'width': '85%', 'margin-bottom': '2rem'}),
+                    html.Div([
+                        html.A('DOWNLOAD DATA', id='download-link', href="")
+                    ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px red dashed', 'width': '85%', 'text-align': 'center'}),
+                    html.Div([
+                        dcc.Link('GRAPH DATA', id='download-link', href="")
+                    ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px green dashed', 'width': '85%',
+                              'text-align': 'center','margin-top': '1.5rem'})
+                ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'})
+            ], style={'display': 'flex'})
         ], className='five columns', style={'margin-top': '1rem'}),
-        html.Div(id='hidden-storage', style={'display': 'none'})
+        html.Div(id='hidden-storage', style={'display': 'none'}),
+        html.Div(id='hidden-storage-01', style={'display': 'none'})
     ], className='row')
 ])
 
@@ -320,3 +308,90 @@ def table_filter(selected_station, filter_data):
                                (df_table_filter.Longitude == selected_station['points'][0]['lon'])].to_dict('records')
     else:
         return []
+
+# Start Year Range to Download Control
+
+@app.callback(
+    Output(component_id='download_frequency', component_property='options'),
+    [Input(component_id='selected-station-table', component_property='selected_rows'),
+     Input(component_id='selected-station-table', component_property='data')]
+)
+def download_frequency(selected_rows, data):
+    df_selected = pd.DataFrame(data)
+
+    if selected_rows and data:
+        print(pd.DataFrame(df_selected[['First Year (Hourly)', 'First Year (Daily)', 'First Year (Monthly)']].
+              replace('N/A',np.nan).dropna(axis=1).columns))
+        return []
+    else:
+        return []
+
+@app.callback(
+    Output(component_id='download_year_start', component_property='options'),
+    [Input(component_id='selected-station-table', component_property='selected_rows'),
+     Input(component_id='selected-station-table', component_property='data'),
+     Input(component_id='download_frequency', component_property='value')]
+)
+def download_start_year(selected_rows, data, freq):
+    df_selected = pd.DataFrame(data)
+
+    if selected_rows and data and freq == 'Hourly':
+        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Hourly)'],
+                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Hourly)']+1, 1)]
+    elif selected_rows and data and freq == 'Daily':
+        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Daily)'],
+                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Daily)']+1, 1)]
+    elif selected_rows and data and freq == 'Monthly':
+        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Monthly)'],
+                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Monthly)']+1, 1)]
+    elif selected_rows and data:
+        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year'],
+                                                                 df_selected.iloc[selected_rows[0]]['Last Year']+1, 1)]
+    else:
+        return [{'label': year, 'value': year} for year in ['Select A Station']]
+
+@app.callback(
+    Output(component_id='download_year_end', component_property='options'),
+    [Input(component_id='selected-station-table', component_property='selected_rows'),
+     Input(component_id='selected-station-table', component_property='data'),
+     Input(component_id='download_frequency', component_property='value')]
+)
+def download_end_year(selected_rows, data, freq):
+    df_selected = pd.DataFrame(data)
+
+    if selected_rows and data and freq == 'Hourly':
+        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Hourly)'],
+                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Hourly)']+1, 1)]
+    elif selected_rows and data and freq == 'Daily':
+        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Daily)'],
+                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Daily)']+1, 1)]
+    elif selected_rows and data and freq == 'Monthly':
+        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Monthly)'],
+                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Monthly)']+1, 1)]
+    elif selected_rows and data:
+        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year'],
+                                                                 df_selected.iloc[selected_rows[0]]['Last Year']+1, 1)]
+    else:
+        return [{'label': year, 'value': year} for year in ['Select A Station']]
+
+@app.callback(
+    Output(component_id='download_month_start', component_property='options'),
+    [Input(component_id='selected-station-table', component_property='selected_rows'),
+     Input(component_id='selected-station-table', component_property='data')]
+)
+def download_start_month(selected_rows, data):
+    if selected_rows and data:
+        return [{'label': year, 'value': year} for year in range(1, 13, 1)]
+    else:
+        return [{'label': year, 'value': year} for year in ['Select A Station']]
+
+@app.callback(
+    Output(component_id='download_month_end', component_property='options'),
+    [Input(component_id='selected-station-table', component_property='selected_rows'),
+     Input(component_id='selected-station-table', component_property='data')]
+)
+def download_end_month(selected_rows, data):
+    if selected_rows and data:
+        return [{'label': year, 'value': year} for year in range(1, 13, 1)]
+    else:
+        return [{'label': year, 'value': year} for year in ['Select A Station']]
