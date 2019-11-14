@@ -9,6 +9,7 @@ from app import app
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import re
 
 ######################################### DATA INPUTS AND LINKS ########################################################
 
@@ -18,7 +19,7 @@ df.replace(np.nan, 'N/A', inplace=True)
 
 # URL Path to Bulk Data Download From Environment Canada
 url_bulk_data_link = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.html?' \
-                'format=csv&stationID={}&Year={}&Month={}&Day={}&timeframe={}'
+                'format=csv&stationID={}&Year={}&Month={}&Day=1&timeframe={}'
 
 ######################################### HELPER FUNCTIONS #############################################################
 
@@ -192,23 +193,26 @@ layout = html.Div([ #Overall container
                                          options=[{'label': month, 'value': month} for month in ['Select A Station']],
                                          placeholder='End Month')
                         ], style={'width': '45%', 'display': 'inline-block', 'margin-left': '0.5rem'})
-                ], style={'width': '55%', 'display': 'inline-block','margin-left': '1rem'}),
-                html.Div([
-                    html.Label('Download Interval:', style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
+                    ], style={'width': '55%', 'display': 'inline-block','margin-left': '1rem'}),
                     html.Div([
-                        dcc.Dropdown(id='download_frequency',
-                                     options=[{'label': frequency, 'value': frequency} for frequency in ['Select A Station']],
-                                     placeholder='Frequency')
-                    ], style={'width': '85%', 'margin-bottom': '2rem'}),
-                    html.Div([
-                        html.A('DOWNLOAD DATA', id='download-link', href="")
-                    ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px red dashed', 'width': '85%', 'text-align': 'center'}),
-                    html.Div([
-                        dcc.Link('GRAPH DATA', id='download-link', href="")
-                    ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px green dashed', 'width': '85%',
-                              'text-align': 'center','margin-top': '1.5rem'})
-                ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'})
-            ], style={'display': 'flex'})
+                        html.Label('Download Interval:', style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
+                        html.Div([
+                            dcc.Dropdown(id='download_frequency',
+                                         options=[{'label': frequency, 'value': frequency} for frequency in ['Select A Station']],
+                                         placeholder='Frequency')
+                        ], style={'width': '85%', 'margin-bottom': '2rem'}),
+                        html.Div([
+                            html.A('DOWNLOAD DATA', id='download-link', href="", target='_blank')
+                        ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px red dashed', 'width': '85%', 'text-align': 'center'}),
+                        html.Div([
+                            dcc.Link('GRAPH DATA', id='download-link', href="")
+                        ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px green dashed', 'width': '85%',
+                                  'text-align': 'center','margin-top': '1.5rem'})
+                    ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'}),
+                ], style={'display': 'flex'}),
+            html.Div([
+                html.Label(id='download_message', children='')
+            ], style={'width': '60%','margin-left': '1rem','margin-top': '3rem'})
         ], className='five columns', style={'margin-top': '1rem'}),
         html.Div(id='hidden-storage', style={'display': 'none'}),
         html.Div(id='hidden-storage-01', style={'display': 'none'})
@@ -218,7 +222,7 @@ layout = html.Div([ #Overall container
 
 ######################################### INTERACTION CALLBACKS ########################################################
 
-# Data Filter
+# Data Filter Stored in Hidden Div
 @app.callback(
     Output(component_id='hidden-storage', component_property='children'),
     [Input(component_id='province', component_property='value'),
@@ -309,89 +313,142 @@ def table_filter(selected_station, filter_data):
     else:
         return []
 
-# Start Year Range to Download Control
+# Store selected filtered table data to prevent callbacks with inconsistent states
+@app.callback(
+    Output(component_id='hidden-storage-01', component_property='children'),
+    [Input(component_id='selected-station-table', component_property='selected_rows'),
+     Input(component_id='selected-station-table', component_property='data')]
+)
+def store_selected_table_data(selected_rows, data):
+    if selected_rows and data:
+        return pd.DataFrame(data).iloc[selected_rows[0]].to_json(date_format='iso', orient='split')
 
+    else:
+        []
+
+# Set download frequency dropdown from hidden div state
 @app.callback(
     Output(component_id='download_frequency', component_property='options'),
-    [Input(component_id='selected-station-table', component_property='selected_rows'),
-     Input(component_id='selected-station-table', component_property='data')]
+    [Input(component_id='hidden-storage-01', component_property='children')]
 )
-def download_frequency(selected_rows, data):
-    df_selected = pd.DataFrame(data)
+def set_download_frequency_dropdown(selected_table_data):
+    if selected_table_data:
 
-    if selected_rows and data:
-        print(pd.DataFrame(df_selected[['First Year (Hourly)', 'First Year (Daily)', 'First Year (Monthly)']].
-              replace('N/A',np.nan).dropna(axis=1).columns))
-        return []
+        df_selected_data = pd.read_json(selected_table_data, orient='split', typ='series')
+
+        available_frequency = df_selected_data[['First Year (Hourly)', 'First Year (Daily)', 'First Year (Monthly)']]\
+            .replace('N/A', np.nan).dropna().index.to_list()
+
+        return [{'label': freq.split('(')[1][:-1], 'value': freq.split('(')[1][:-1]} for freq in available_frequency]
+
     else:
-        return []
+        return [{'label': year, 'value': year} for year in ['Select A Station']]
 
+# set download start year dropdown from hidden div state
 @app.callback(
     Output(component_id='download_year_start', component_property='options'),
-    [Input(component_id='selected-station-table', component_property='selected_rows'),
-     Input(component_id='selected-station-table', component_property='data'),
-     Input(component_id='download_frequency', component_property='value')]
+    [Input(component_id='download_frequency', component_property='value'),
+     Input(component_id='hidden-storage-01', component_property='children')]
 )
-def download_start_year(selected_rows, data, freq):
-    df_selected = pd.DataFrame(data)
+def set_download_start_year_dropdown(selected_frequency, selected_table_data):
+    try:
+        df_selected_data = pd.read_json(selected_table_data, orient='split', typ='series')
 
-    if selected_rows and data and freq == 'Hourly':
-        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Hourly)'],
-                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Hourly)']+1, 1)]
-    elif selected_rows and data and freq == 'Daily':
-        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Daily)'],
-                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Daily)']+1, 1)]
-    elif selected_rows and data and freq == 'Monthly':
-        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Monthly)'],
-                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Monthly)']+1, 1)]
-    elif selected_rows and data:
-        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year'],
-                                                                 df_selected.iloc[selected_rows[0]]['Last Year']+1, 1)]
-    else:
+        if selected_table_data and selected_frequency == 'Hourly':
+            return [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Hourly)'],
+                                                                     df_selected_data['Last Year (Hourly)']+1, 1)]
+        elif selected_table_data and selected_frequency == 'Daily':
+            return [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Daily)'],
+                                                                     df_selected_data['Last Year (Daily)']+1, 1)]
+        elif selected_table_data and selected_frequency == 'Monthly':
+            return [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Monthly)'],
+                                                                     df_selected_data['Last Year (Monthly)']+1, 1)]
+        elif selected_table_data:
+            return [{'label': year, 'value': year} for year in range(df_selected_data['First Year'],
+                                                                     df_selected_data['Last Year']+1, 1)]
+    except:
         return [{'label': year, 'value': year} for year in ['Select A Station']]
 
+# set download end year dropdown from hidden div state
 @app.callback(
     Output(component_id='download_year_end', component_property='options'),
-    [Input(component_id='selected-station-table', component_property='selected_rows'),
-     Input(component_id='selected-station-table', component_property='data'),
-     Input(component_id='download_frequency', component_property='value')]
+    [Input(component_id='download_frequency', component_property='value'),
+     Input(component_id='hidden-storage-01', component_property='children')]
 )
-def download_end_year(selected_rows, data, freq):
-    df_selected = pd.DataFrame(data)
+def set_download_end_year_dropdown(selected_frequency, selected_table_data):
+    try:
+        df_selected_data = pd.read_json(selected_table_data, orient='split', typ='series')
 
-    if selected_rows and data and freq == 'Hourly':
-        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Hourly)'],
-                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Hourly)']+1, 1)]
-    elif selected_rows and data and freq == 'Daily':
-        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Daily)'],
-                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Daily)']+1, 1)]
-    elif selected_rows and data and freq == 'Monthly':
-        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year (Monthly)'],
-                                                                 df_selected.iloc[selected_rows[0]]['Last Year (Monthly)']+1, 1)]
-    elif selected_rows and data:
-        return [{'label': year, 'value': year} for year in range(df_selected.iloc[selected_rows[0]]['First Year'],
-                                                                 df_selected.iloc[selected_rows[0]]['Last Year']+1, 1)]
-    else:
+        if selected_table_data and selected_frequency == 'Hourly':
+            return [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Hourly)'],
+                                                                     df_selected_data['Last Year (Hourly)']+1, 1)]
+        elif selected_table_data and selected_frequency == 'Daily':
+            return [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Daily)'],
+                                                                     df_selected_data['Last Year (Daily)']+1, 1)]
+        elif selected_table_data and selected_frequency == 'Monthly':
+            return [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Monthly)'],
+                                                                     df_selected_data['Last Year (Monthly)']+1, 1)]
+        elif selected_table_data:
+            return [{'label': year, 'value': year} for year in range(df_selected_data['First Year'],
+                                                                     df_selected_data['Last Year']+1, 1)]
+    except:
         return [{'label': year, 'value': year} for year in ['Select A Station']]
 
+# set download start month dropdown from hidden div state
 @app.callback(
     Output(component_id='download_month_start', component_property='options'),
-    [Input(component_id='selected-station-table', component_property='selected_rows'),
-     Input(component_id='selected-station-table', component_property='data')]
+    [Input(component_id='hidden-storage-01', component_property='children')]
 )
-def download_start_month(selected_rows, data):
-    if selected_rows and data:
+def set_download_start_month_dropdown(selected_table_data):
+    if selected_table_data:
         return [{'label': year, 'value': year} for year in range(1, 13, 1)]
     else:
         return [{'label': year, 'value': year} for year in ['Select A Station']]
 
+# set download start month dropdown from hidden div state
 @app.callback(
     Output(component_id='download_month_end', component_property='options'),
-    [Input(component_id='selected-station-table', component_property='selected_rows'),
-     Input(component_id='selected-station-table', component_property='data')]
+    [Input(component_id='hidden-storage-01', component_property='children')]
 )
-def download_end_month(selected_rows, data):
-    if selected_rows and data:
+def set_download_start_month_dropdown(selected_table_data):
+    if selected_table_data:
         return [{'label': year, 'value': year} for year in range(1, 13, 1)]
     else:
         return [{'label': year, 'value': year} for year in ['Select A Station']]
+
+# Set download message indicating to user what they will be getting
+@app.callback(
+    Output(component_id='download_message', component_property='children'),
+    [Input(component_id='hidden-storage-01', component_property='children'),
+     Input(component_id='download_year_start', component_property='value'),
+     Input(component_id='download_year_end', component_property='value'),
+     Input(component_id='download_month_start', component_property='value'),
+     Input(component_id='download_month_end', component_property='value'),
+     Input(component_id='download_frequency', component_property='value')]
+)
+def set_download_message(selected_table_data, start_year, end_year, start_month, end_month, freq):
+    try:
+        df_selected_data = pd.read_json(selected_table_data, orient='split', typ='series')
+        if start_year and start_month and end_year and end_month and freq:
+            return 'Select DOWNLOAD DATA to begin downloading {} data from {}-{} to {}-{} for station {} (station ID {})'\
+                .format(freq, start_year, start_month, end_year, end_month, df_selected_data.Name, df_selected_data['Station ID'])
+    except:
+        return ''
+
+# Set download link to download button
+@app.callback(
+    Output(component_id='download-link', component_property='href'),
+    [Input(component_id='hidden-storage-01', component_property='children'),
+     Input(component_id='download_year_start', component_property='value'),
+     Input(component_id='download_year_end', component_property='value'),
+     Input(component_id='download_month_start', component_property='value'),
+     Input(component_id='download_month_end', component_property='value'),
+     Input(component_id='download_frequency', component_property='value')]
+)
+def set_download_link(selected_table_data, start_year, end_year, start_month, end_month, freq):
+    try:
+        df_selected_data = pd.read_json(selected_table_data, orient='split', typ='series')
+        if start_year and start_month and end_year and end_month and freq == 'Hourly':
+            return print(url_bulk_data_link.format(df_selected_data['Station ID'], start_year, start_month, 1))
+    except:
+        return ""
