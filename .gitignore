@@ -5,6 +5,4 @@ venv
 *.pyc
 .DS_Store
 .env
-map_generation.ipynb
-process_station_metadata.py
-station-metadata-raw.csv
+process-scripts
