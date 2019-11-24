@@ -3,11 +3,12 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 
 from app import app
-from pages import home_page, graph_page
+from pages import home_page, graph_page, about
 
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
-    html.Div(id='page-content'),
+    dcc.Store(id='create-data', storage_type='session'),
+    html.Div(id='page-content')
 ])
 
 @app.callback(Output('page-content', 'children'),
@@ -15,8 +16,10 @@ app.layout = html.Div([
 def display_page(pathname):
     if pathname == '/pages/graph_page':
         return graph_page.layout
+    elif pathname == '/pages/about':
+        return about.layout
     else:
         return home_page.layout
 
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8100)
+    app.run_server(debug=True)

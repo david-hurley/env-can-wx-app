@@ -1,4 +1,10 @@
 # .gitignore
 .idea/
-venv/
 .ipynb_checkpoints
+venv
+*.pyc
+.DS_Store
+.env
+map_generation.ipynb
+process_station_metadata.py
+station-metadata-raw.csv
