@@ -9,6 +9,7 @@ import numpy as np
 from datetime import datetime
 import flask
 import os
+import tasks
 
 from app import app
 
@@ -40,31 +41,6 @@ def compute_great_circle_distance(lat_user, lon_user, lat_station, lon_station):
     earth_radius_km = 6371
     return earth_radius_km * 2 * np.arcsin(np.sqrt(a))
 
-def download_archived_data(station_id, start_year, start_month, end_year, end_month, frequency, url):
-    """
-    Downloads the requested station data
-    :param station_id: Station ID from Env Can
-    :param start_year: User selected first year
-    :param start_month: User selected first month
-    :param end_year: User selected end year
-    :param end_month: User selected end month
-    :param frequency: User selected data interval
-    :param url: url path to station of interest
-    :return: Data Frame for station spanning defined period
-    """
-    download_dates = pd.date_range(start=str(start_year) + '/' + str(start_month),
-                                   end=str(end_year) + '/' + str(end_month), freq='M')
-    li = []
-    for date in download_dates:
-        if frequency == 'Hourly':
-            li.append(pd.read_csv(url.format(str(station_id), date.year, date.month, 1)))
-        elif frequency == 'Daily':
-            li.append(pd.read_csv(url.format(str(station_id), date.year, date.month, 2)))
-        else:
-            li.append(pd.read_csv(url.format(str(station_id), date.year, date.month, 3)))
-    return pd.concat(li)
-
-
 ######################################### PLOTS ########################################################################
 
 # Plot the station map
@@ -94,8 +70,7 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
             'style': 'basic',
             'center': {'lat': 59, 'lon': -97},
             'zoom': 2.5,
-            'accesstoken':
-                'pk.eyJ1IjoiZGxodXJsZXkiLCJhIjoiY2sya2xrMTJqMWFjMzNucXB3bnp1MXd0ZyJ9.UBKniAsr5Li1Yv5dJOP5yQ'
+            'accesstoken': os.environ['MAPBOX_TOKEN']
         },
         'margin': {
             'l': 0, 'r': 0, 'b': 0, 't': 0
@@ -430,9 +405,10 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
     Output(component_id='load-div', component_property='style'),
     [Input(component_id='fetch-link', component_property='n_clicks')]
 )
-def show_load_div(click):
+def show_load_div(clicks):
     ctx = dash.callback_context  # Look for specific click event
-    if ctx.triggered:
+
+    if clicks:
         if ctx.triggered[0]['prop_id'] == 'fetch-link.n_clicks':
             div_style = {'visibility': 'visible'}
         else:
@@ -459,14 +435,17 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
     ctx = dash.callback_context  # Look for specific click event
 
     if selected_table_data and start_year and start_month and end_year and end_month and freq and \
-        ctx.triggered[0]['prop_id'] == 'fetch-link.n_clicks' and ctx.triggered[0]['value']:
+        ctx.triggered[0]['prop_id'] == 'fetch-link.n_clicks' and clicks:
         df_selected_data = pd.DataFrame(selected_table_data)
         start_date = datetime.strptime(str(start_year) + str(start_month) + '1', '%Y%m%d').date()
         end_date = datetime.strptime(str(end_year) + str(end_month) + '1', '%Y%m%d').date()
         relative_filename = os.path.join('tmp', '{}_{}_{}-download.csv'.format(df_selected_data.Name[0], start_date, end_date))
         absolute_filename = os.path.join(os.getcwd(), relative_filename)
-        df_output_data = download_archived_data(df_selected_data['Station ID'][0], start_year, start_month, end_year,
-                                                end_month, freq, bulk_data_pathname)
+        df_output_data = tasks.download_archived_data.apply_async([int(df_selected_data['Station ID'][0]), int(start_year),
+                                                                   int(start_month), int(end_year), int(end_month), freq,
+                                                                   bulk_data_pathname])
+        df_output_data = df_output_data.get()
+        df_output_data = pd.read_json(df_output_data, orient='split')
         df_output_data.to_csv(absolute_filename)
         link_path = '/{}'.format(relative_filename)
         df_output_data = {}
