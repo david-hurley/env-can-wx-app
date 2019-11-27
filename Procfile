@@ -1,2 +1,2 @@
-web: gunicorn index:app.server --log-file=-
-worker: celery -A tasks workers 2 --loglevel=info --concurrency=4 -k gevent --timeout 600
+web: gunicorn index:app.server -w 4 -k gevent
+worker: celery -A tasks worker --loglevel=info --concurrency=2
