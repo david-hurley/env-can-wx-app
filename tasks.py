@@ -8,7 +8,7 @@ celery_app = celery.Celery('query')
 celery_app.conf.update(BROKER_URL=os.environ['REDIS_URL'],
                 CELERY_RESULT_BACKEND=os.environ['REDIS_URL'])
 
-@celery_app.task(time_limit=90)
+@celery_app.task()
 def download_archived_data(station_id, start_year, start_month, end_year, end_month, frequency, url):
     """
     Downloads the requested station data
