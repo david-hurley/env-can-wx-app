@@ -1,7 +1,6 @@
 import celery
 import os
 import pandas as pd
-import time
 
 celery_app = celery.Celery('query')
 

@@ -441,7 +441,7 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
         end_date = datetime.strptime(str(end_year) + str(end_month) + '1', '%Y%m%d').date()
         relative_filename = os.path.join('tmp', '{}_{}_{}-download.csv'.format(df_selected_data.Name[0], start_date, end_date))
         absolute_filename = os.path.join(os.getcwd(), relative_filename)
-        df_output_data = tasks.download_archived_data.apply_async([int(df_selected_data['Station ID'][0]), int(start_year),
+        df_output_data = tasks.download_archived_data.delay([int(df_selected_data['Station ID'][0]), int(start_year),
                                                                    int(start_month), int(end_year), int(end_month), freq,
                                                                    bulk_data_pathname])
         df_output_data = df_output_data.get()
