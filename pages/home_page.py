@@ -446,7 +446,7 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
                                                                    bulk_data_pathname])
         df_output_data = df_output_data.get()
         df_output_data = pd.read_json(df_output_data, orient='split')
-        df_output_data.to_csv(absolute_filename)
+        df_output_data.to_csv(absolute_filename,index=False)
         link_path = '/{}'.format(relative_filename)
         df_output_data = {}
         download_graph_viz = {'visibility': 'visible'}

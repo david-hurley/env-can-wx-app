@@ -21,7 +21,6 @@ def download_archived_data(station_id, start_year, start_month, end_year, end_mo
     :param url: url path to station of interest
     :return: Data Frame for station spanning defined period
     """
-    time.sleep(1.5)
     download_dates = pd.date_range(start=str(start_year) + '/' + str(start_month),
                                    end=str(end_year) + '/' + str(end_month), freq='M')
     li = []
