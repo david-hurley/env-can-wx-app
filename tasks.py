@@ -1,33 +1,38 @@
 import celery
-import os
 import pandas as pd
+import os
+import s3fs
 
-celery_app = celery.Celery('query')
+celery_app = celery.Celery('download')
+celery_app.conf.update(
+    broker_url=os.environ['REDIS_URL'],
+    result_backend=os.environ['REDIS_URL'],
+    redis_max_connections=4)
 
-celery_app.conf.update(BROKER_URL=os.environ['REDIS_URL'],
-                CELERY_RESULT_BACKEND=os.environ['REDIS_URL'])
+@celery_app.task(bind=True)
+def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency, url_raw):
 
-@celery_app.task()
-def download_archived_data(station_id, start_year, start_month, end_year, end_month, frequency, url):
-    """
-    Downloads the requested station data
-    :param station_id: Station ID from Env Can
-    :param start_year: User selected first year
-    :param start_month: User selected first month
-    :param end_year: User selected end year
-    :param end_month: User selected end month
-    :param frequency: User selected data interval
-    :param url: url path to station of interest
-    :return: Data Frame for station spanning defined period
-    """
     download_dates = pd.date_range(start=str(start_year) + '/' + str(start_month),
                                    end=str(end_year) + '/' + str(end_month), freq='M')
-    li = []
-    for date in download_dates:
-        if frequency == 'Hourly':
-            li.append(pd.read_csv(url.format(str(station_id), date.year, date.month, 1)))
-        elif frequency == 'Daily':
-            li.append(pd.read_csv(url.format(str(station_id), date.year, date.month, 2)))
-        else:
-            li.append(pd.read_csv(url.format(str(station_id), date.year, date.month, 3)))
-    return pd.concat(li).to_json(date_format='iso', orient='split')
+
+    if frequency == 'Hourly':
+        urls = [url_raw.format(station_id, date.year, date.month, 1) for date in download_dates]
+        data = pd.concat((pd.read_csv(url) for url in urls))
+    elif frequency == 'Daily':
+        urls = [url_raw.format(station_id, date.year, date.month, 2) for date in download_dates]
+        data = pd.concat((pd.read_csv(url) for url in urls))
+    else:
+        urls = [url_raw.format(station_id, date.year, date.month, 3) for date in download_dates]
+        data = pd.concat((pd.read_csv(url) for url in urls))
+
+    filename = str(station_id) + '-' + str(start_year) + '-' + str(end_year) + '.csv'
+
+    # Send data to S3
+    s3 = s3fs.S3FileSystem(anon=False,
+                           key=os.environ['AWS_ACCESS_KEY_ID'],
+                           secret=os.environ['AWS_SECRET_ACCESS_KEY'])
+    with s3.open(os.environ['S3_BUCKET']+'/'+filename, 'w') as f:
+        data.to_csv(f)
+
+    return "works"
+

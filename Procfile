@@ -1,2 +1,2 @@
-web: gunicorn index:app.server -w 2 -k gevent
-worker: celery -A tasks worker --loglevel=info --max-tasks-per-child=1
+web: gunicorn index:app.server -w 4 -k gevent --log-file=-
+worker: celery -A tasks worker --loglevel=info

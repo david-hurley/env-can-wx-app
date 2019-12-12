@@ -22,4 +22,4 @@ def display_page(pathname):
         return home_page.layout
 
 if __name__ == '__main__':
-    app.run_server(debug=True, processes=4)
+    app.run_server(debug=True)

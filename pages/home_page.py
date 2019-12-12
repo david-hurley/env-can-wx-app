@@ -10,30 +10,27 @@ from datetime import datetime
 import flask
 import os
 import tasks
+from flask import redirect
+import boto3
+from celery.result import AsyncResult
+from tasks import celery_app
 
 from app import app
 
 ######################################### DATA INPUTS AND LINKS ########################################################
 
-# Environment Canada Station Metadata
+# Environment Canada - Station List and Metadata
 df = pd.read_csv('station-metadata-processed.csv')
 df.replace(np.nan, 'N/A', inplace=True)
 
-# URL Path to Bulk Data Download From Environment Canada
+# URL Path to Bulk Download Data from Environment Canada
 bulk_data_pathname = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.html?' \
                      'format=csv&stationID={}&Year={}&Month={}&Day=1&timeframe={}'
 
 ######################################### HELPER FUNCTIONS #############################################################
 
 def compute_great_circle_distance(lat_user, lon_user, lat_station, lon_station):
-    """
-    Computes the distance between two locations using the Haversine Formula
-    :param lat_user: user defined latitude (text)
-    :param lon_user: user defined longitude (text)
-    :param lat_station: station latitude (array, float64)
-    :param lon_station: station longitude (array, float64)
-    :return: distance from user locations to stations
-    """
+
     lat1, lon1 = np.radians([np.float64(lat_user), np.float64(lon_user)])
     lat2, lon2 = np.radians([lat_station, lon_station])
     a = np.sin((lat2 - lat1) / 2.0) ** 2 + np.cos(lat1) * \
@@ -80,7 +77,9 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
 
 ######################################### LAYOUT #######################################################################
 
-layout = html.Div([  # Overall container
+layout = html.Div([
+    # Hold task-id and task-status hidden
+    html.Div(id='task-id', children='none', style={'display': 'none'}),
     # Header container
     html.Div([
         html.Div([
@@ -228,9 +227,9 @@ layout = html.Div([  # Overall container
                         ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px blue dashed', 'width': '85%',
                                   'text-align': 'left', 'margin-top': '1.5rem'}),
                         ], style={'visibility': 'hidden'}),
-                    html.Div(id='load-div', children=[
-                        dcc.Loading(id="loading-1", children=[html.Div(id="loading-output-1")], type="default"),
-                    ], style={'visibility': 'hidden'})
+                    html.Div(id='load-div', children=[dcc.Loading(id='loading', children=[html.Div(id='task-status',
+                                                                                                   children='none', style={'display': 'none'})], type='default')],
+                             style={'visibility': 'hidden'})
                 ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'}),
             ], style={'display': 'flex'})
         ], className='five columns', style={'margin-top': '1rem'}),
@@ -401,28 +400,27 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
     return message, message_style
 
 # Be cheeky and hide the loading component
-@app.callback(
-    Output(component_id='load-div', component_property='style'),
-    [Input(component_id='fetch-link', component_property='n_clicks')]
-)
-def show_load_div(clicks):
-    ctx = dash.callback_context  # Look for specific click event
-
-    if clicks:
-        if ctx.triggered[0]['prop_id'] == 'fetch-link.n_clicks':
-            div_style = {'visibility': 'visible'}
-        else:
-            div_style = {'visibility': 'hidden'}
-    else:
-        div_style = {'visibility': 'hidden'}
-    return div_style
+# @app.callback(
+#     Output(component_id='load-div', component_property='style'),
+#     [Input(component_id='fetch-link', component_property='n_clicks')]
+# )
+# def show_load_div(clicks):
+#     ctx = dash.callback_context  # Look for specific click event
+#
+#     if clicks:
+#         if ctx.triggered[0]['prop_id'] == 'fetch-link.n_clicks':
+#             div_style = {'visibility': 'visible'}
+#         else:
+#             div_style = {'visibility': 'hidden'}
+#     else:
+#         div_style = {'visibility': 'hidden'}
+#     return div_style
 
 # Create and save file in /tmp and get server link
 @app.callback(
     [Output(component_id='download-link', component_property='href'),
-     Output(component_id='toggle_button_vis', component_property='style'),
-     Output(component_id='create-data', component_property='data'),
-     Output(component_id='loading-output-1', component_property='children')],
+     Output(component_id='task-id', component_property='children'),
+     Output(component_id='load-div', component_property='style')],
     [Input(component_id='selected-station-table', component_property='data'),
      Input(component_id='download_year_start', component_property='value'),
      Input(component_id='download_year_end', component_property='value'),
@@ -436,31 +434,50 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
 
     if selected_table_data and start_year and start_month and end_year and end_month and freq and \
         ctx.triggered[0]['prop_id'] == 'fetch-link.n_clicks' and clicks:
+
         df_selected_data = pd.DataFrame(selected_table_data)
-        start_date = datetime.strptime(str(start_year) + str(start_month) + '1', '%Y%m%d').date()
-        end_date = datetime.strptime(str(end_year) + str(end_month) + '1', '%Y%m%d').date()
-        relative_filename = os.path.join('tmp', '{}_{}_{}-download.csv'.format(df_selected_data.Name[0], start_date, end_date))
-        absolute_filename = os.path.join(os.getcwd(), relative_filename)
-        df_output_data = tasks.download_archived_data.apply_async([int(df_selected_data['Station ID'][0]), int(start_year),
+
+        filename = str(df_selected_data['Station ID'][0]) + '-' + str(start_year) + '-' + str(end_year) + '.csv'
+        relative_filename = os.path.join('download', filename)
+        link_path = '/{}'.format(relative_filename)
+
+        df_output_data = tasks.download_remote_data.apply_async([int(df_selected_data['Station ID'][0]), int(start_year),
                                                                    int(start_month), int(end_year), int(end_month), freq,
                                                                    bulk_data_pathname])
-        df_output_data = df_output_data.get()
-        df_output_data = pd.read_json(df_output_data, orient='split')
-        df_output_data.to_csv(absolute_filename,index=False)
-        link_path = '/{}'.format(relative_filename)
-        df_output_data = {}
-        download_graph_viz = {'visibility': 'visible'}
+        task_id = str(df_output_data.id)
+        div_style = {'visibility': 'visible'}
 
     else:
-        link_path = ""
-        df_output_data = {}
+        link_path = ''
+        task_id = None
+        div_style = {'visibility': 'hidden'}
+
+    return link_path, task_id, div_style
+
+# Update Task Status
+@app.callback(
+    [Output(component_id='task-status', component_property='children'),
+     Output(component_id='toggle_button_vis', component_property='style')],
+    [Input(component_id='task-id', component_property='children')]
+)
+def update_task_status(task_id):
+
+    if task_id:
+        task_status_init = AsyncResult(id=task_id, app=celery_app).state
+        download_graph_viz = {'visibility': 'visible'}
+        while task_status_init in ['PENDING', 'STARTED']:
+            task_status_init = AsyncResult(id=task_id, app=celery_app).state
+    else:
+        task_status_init = None
         download_graph_viz = {'visibility': 'hidden'}
 
-    return link_path, download_graph_viz, df_output_data, ""
+    return task_status_init, download_graph_viz
 
-@app.server.route('/tmp/<path:path>')
-def serve_static(path):
-    root_dir = os.getcwd()
-    return flask.send_from_directory(
-        os.path.join(root_dir, 'tmp'), path
-    )
+# Flask Magik
+@app.server.route('/download/<filename>')
+def serve_static(filename):
+    s3 = boto3.client('s3', region_name='us-west-2',
+                      aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+                      aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
+    url = s3.generate_presigned_url('get_object', Params={'Bucket': os.environ['S3_BUCKET'], 'Key': filename}, ExpiresIn=100)
+    return redirect(url, code=302)
