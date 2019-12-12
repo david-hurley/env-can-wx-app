@@ -30,8 +30,7 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
     # Send data to S3
     s3 = s3fs.S3FileSystem(anon=False,
                            key=os.environ['AWS_ACCESS_KEY_ID'],
-                           secret=os.environ['AWS_SECRET_ACCESS_KEY'],
-                           region='us-west-2')
+                           secret=os.environ['AWS_SECRET_ACCESS_KEY'])
     with s3.open(os.environ['S3_BUCKET']+'/'+filename, 'w') as f:
         data.to_csv(f)
 
