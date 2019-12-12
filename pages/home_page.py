@@ -7,7 +7,6 @@ import dash_html_components as html
 import pandas as pd
 import numpy as np
 from datetime import datetime
-import flask
 import os
 import tasks
 from flask import redirect
