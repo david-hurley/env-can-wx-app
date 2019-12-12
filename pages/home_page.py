@@ -398,23 +398,6 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
 
     return message, message_style
 
-# Be cheeky and hide the loading component
-# @app.callback(
-#     Output(component_id='load-div', component_property='style'),
-#     [Input(component_id='fetch-link', component_property='n_clicks')]
-# )
-# def show_load_div(clicks):
-#     ctx = dash.callback_context  # Look for specific click event
-#
-#     if clicks:
-#         if ctx.triggered[0]['prop_id'] == 'fetch-link.n_clicks':
-#             div_style = {'visibility': 'visible'}
-#         else:
-#             div_style = {'visibility': 'hidden'}
-#     else:
-#         div_style = {'visibility': 'hidden'}
-#     return div_style
-
 # Create and save file in /tmp and get server link
 @app.callback(
     [Output(component_id='download-link', component_property='href'),
@@ -436,7 +419,7 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
 
         df_selected_data = pd.DataFrame(selected_table_data)
 
-        filename = str(df_selected_data['Station ID'][0]) + '-' + str(start_year) + '-' + str(end_year) + '.csv'
+        filename = 'ENV-CAN' + '-' + freq + '-' + 'Station' + str(df_selected_data['Station ID'][0]) + '-' + str(start_year) + '-' + str(end_year) + '.csv'
         relative_filename = os.path.join('download', filename)
         link_path = '/{}'.format(relative_filename)
 

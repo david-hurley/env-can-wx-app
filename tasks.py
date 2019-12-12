@@ -25,7 +25,7 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
         urls = [url_raw.format(station_id, date.year, date.month, 3) for date in download_dates]
         data = pd.concat((pd.read_csv(url) for url in urls))
 
-    filename = str(station_id) + '-' + str(start_year) + '-' + str(end_year) + '.csv'
+    filename = 'ENV-CAN' + '-' + frequency + '-' + 'Station' + str(station_id) + '-' + str(start_year) + '-' + str(end_year) + '.csv'
 
     # Send data to S3
     s3 = s3fs.S3FileSystem(anon=False,
@@ -34,5 +34,5 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
     with s3.open(os.environ['S3_BUCKET']+'/'+filename, 'w') as f:
         data.to_csv(f)
 
-    return "works"
+    return data.to_dict()
 
