@@ -13,6 +13,7 @@ from flask import redirect
 import boto3
 from celery.result import AsyncResult
 from tasks import celery_app
+import base64
 
 from app import app
 
@@ -25,6 +26,9 @@ df.replace(np.nan, 'N/A', inplace=True)
 # URL Path to Bulk Download Data from Environment Canada
 bulk_data_pathname = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.html?' \
                      'format=csv&stationID={}&Year={}&Month={}&Day=1&timeframe={}'
+
+# Spinner to Base64 Encode
+spinner = base64.b64encode(open(os.path.join('assets','spinner.gif'), 'rb').read())
 
 ######################################### HELPER FUNCTIONS #############################################################
 
@@ -79,6 +83,12 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
 layout = html.Div([
     # Hold task-id and task-status hidden
     html.Div(id='task-id', children='none', style={'display': 'none'}),
+    html.Div(id='task-status', children='none', style={'display': 'none'}),
+    dcc.Interval(
+        id='task-interval',
+        interval=250,  # in milliseconds
+        n_intervals=0
+    ),
     # Header container
     html.Div([
         html.Div([
@@ -226,9 +236,8 @@ layout = html.Div([
                         ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px blue dashed', 'width': '85%',
                                   'text-align': 'left', 'margin-top': '1.5rem'}),
                         ], style={'visibility': 'hidden'}),
-                    html.Div(id='load-div', children=[dcc.Loading(id='loading', children=[html.Div(id='task-status',
-                                                                                                   children='none', style={'display': 'none'})], type='default')],
-                             style={'visibility': 'hidden'})
+                    html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode()))],
+                             style={'visibility': 'hidden'}),
                 ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'}),
             ], style={'display': 'flex'})
         ], className='five columns', style={'margin-top': '1rem'}),
@@ -401,8 +410,7 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
 # Create and save file in /tmp and get server link
 @app.callback(
     [Output(component_id='download-link', component_property='href'),
-     Output(component_id='task-id', component_property='children'),
-     Output(component_id='load-div', component_property='style')],
+     Output(component_id='task-id', component_property='children')],
     [Input(component_id='selected-station-table', component_property='data'),
      Input(component_id='download_year_start', component_property='value'),
      Input(component_id='download_year_end', component_property='value'),
@@ -427,33 +435,46 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
                                                                    int(start_month), int(end_year), int(end_month), freq,
                                                                    bulk_data_pathname])
         task_id = str(df_output_data.id)
-        div_style = {'visibility': 'visible'}
 
     else:
         link_path = ''
         task_id = None
-        div_style = {'visibility': 'hidden'}
 
-    return link_path, task_id, div_style
+    return link_path, task_id
 
 # Update Task Status
 @app.callback(
     [Output(component_id='task-status', component_property='children'),
      Output(component_id='toggle_button_vis', component_property='style')],
-    [Input(component_id='task-id', component_property='children')]
+    [Input(component_id='task-id', component_property='children'),
+     Input(component_id='task-interval', component_property='n_intervals')]
 )
-def update_task_status(task_id):
+def update_task_status(task_id, n_int):
 
     if task_id:
         task_status_init = AsyncResult(id=task_id, app=celery_app).state
-        download_graph_viz = {'visibility': 'visible'}
-        while task_status_init in ['PENDING', 'STARTED']:
-            task_status_init = AsyncResult(id=task_id, app=celery_app).state
+        if task_status_init == 'SUCCESS':
+            download_graph_viz = {'visibility': 'visible'}
+        else:
+            download_graph_viz = {'visibility': 'hidden'}
     else:
         task_status_init = None
         download_graph_viz = {'visibility': 'hidden'}
 
     return task_status_init, download_graph_viz
+
+@app.callback(
+    Output(component_id='spinner', component_property='style'),
+    [Input(component_id='task-status', component_property='children')]
+)
+def update_spinner(task_status):
+
+    if task_status == 'PENDING':
+        loading_div_viz = {'visibility': 'visible'}
+    else:
+        loading_div_viz = {'visibility': 'hidden'}
+
+    return loading_div_viz
 
 # Flask Magik
 @app.server.route('/download/<filename>')
