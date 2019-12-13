@@ -28,7 +28,7 @@ bulk_data_pathname = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.htm
                      'format=csv&stationID={}&Year={}&Month={}&Day=1&timeframe={}'
 
 # Spinner to Base64 Encode
-spinner = base64.b64encode(open(os.path.join('assets','spinner.gif'), 'rb').read())
+spinner = base64.b64encode(open(os.path.join('assets', 'spinner.gif'), 'rb').read())
 
 ######################################### HELPER FUNCTIONS #############################################################
 
@@ -236,8 +236,9 @@ layout = html.Div([
                         ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px blue dashed', 'width': '85%',
                                   'text-align': 'left', 'margin-top': '1.5rem'}),
                         ], style={'visibility': 'hidden'}),
-                    html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode()))],
-                             style={'visibility': 'hidden'}),
+                    html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode())),
+                                                     "What Up Council! Be Patient!"],
+                             style={'visibility': 'hidden', 'text-align': 'center'}),
                 ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'}),
             ], style={'display': 'flex'})
         ], className='five columns', style={'margin-top': '1rem'}),
@@ -462,6 +463,19 @@ def update_task_status(task_id, n_int):
         download_graph_viz = {'visibility': 'hidden'}
 
     return task_status_init, download_graph_viz
+
+@app.callback(
+    Output(component_id='task-interval', component_property='interval'),
+    [Input(component_id='task-status', component_property='children')]
+)
+def update_interval(task_status):
+
+    if task_status == 'PENDING':
+        interval = 24*60*60*1*1000
+    else:
+        interval = 24*60*60*1*1000
+
+    return interval
 
 @app.callback(
     Output(component_id='spinner', component_property='style'),
