@@ -237,7 +237,7 @@ layout = html.Div([
                                   'text-align': 'left', 'margin-top': '1.5rem'}),
                         ], style={'visibility': 'hidden'}),
                     html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode())),
-                                                     "What Up Council! Be Patient!"],
+                                                     "What Up Council!"],
                              style={'visibility': 'hidden', 'text-align': 'center'}),
                 ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'}),
             ], style={'display': 'flex'})
@@ -471,7 +471,7 @@ def update_task_status(task_id, n_int):
 def update_interval(task_status):
 
     if task_status == 'PENDING':
-        interval = 24*60*60*1*1000
+        interval = 250
     else:
         interval = 24*60*60*1*1000
 
