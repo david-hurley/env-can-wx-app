@@ -17,11 +17,7 @@ def download_data_graph(x,y, title):
     }
 
 layout = html.Div([
-    html.Div([
-        html.H3("Super Speedy Environment Canada Weather Download")
-    ], style={'display': 'inline-block', 'align-self': 'center', 'margin': '0 auto'}),
-], className='twelve columns', style={'background': '#DCDCDC', 'border': '2px black solid', 'display': 'flex'}),
-         html.H6('Under Construction'),
+    html.H6('Under Construction'),
     dcc.Link('Go To Home Page', href='/pages/home_page'),
     dcc.Graph(id='download-data-graph',
               figure=download_data_graph([], [], 'None'))
