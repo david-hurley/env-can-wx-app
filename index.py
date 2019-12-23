@@ -7,7 +7,7 @@ from pages import home_page, graph_page, about
 
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
-    dcc.Store(id='create-data', storage_type='session'),
+    dcc.Store(id='data-store', storage_type='session'),
     html.Div(id='page-content')
 ])
 

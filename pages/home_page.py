@@ -27,10 +27,11 @@ df.replace(np.nan, 'N/A', inplace=True)
 bulk_data_pathname = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.html?' \
                      'format=csv&stationID={}&Year={}&Month={}&Day=1&timeframe={}'
 
-# Spinner to Base64 Encode
+# Preload Spinner to Base64 Encode
 spinner = base64.b64encode(open(os.path.join('assets', 'spinner.gif'), 'rb').read())
 
 ######################################### HELPER FUNCTIONS #############################################################
+
 
 def compute_great_circle_distance(lat_user, lon_user, lat_station, lon_station):
 
@@ -41,7 +42,9 @@ def compute_great_circle_distance(lat_user, lon_user, lat_station, lon_station):
     earth_radius_km = 6371
     return earth_radius_km * 2 * np.arcsin(np.sqrt(a))
 
+
 ######################################### PLOTS ########################################################################
+
 
 # Plot the station map
 def station_map(stations, lat_selected, lon_selected, name_selected, color):
@@ -54,7 +57,7 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
          'text': stations.Name,
          'marker': {'color': color}
          },
-        # Highlight Selected Station
+        # Highlight Selected Station With Red Dot
         {'type': 'scattermapbox',
          'lat': [lat_selected],
          'lon': [lon_selected],
@@ -78,18 +81,21 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
     }
     }
 
+
 ######################################### LAYOUT #######################################################################
+
 
 layout = html.Div([
     # Hold task-id and task-status hidden
     html.Div(id='task-id', children='none', style={'display': 'none'}),
-    html.Div(id='task-status', children='none', style={'display': 'none'}),
+    html.Div(id='task-status', children='none'),
+    # Update refresh interval to avoid Heroku timeout on preload spinner
     dcc.Interval(
         id='task-interval',
         interval=250,  # in milliseconds
         n_intervals=0
     ),
-    # Header container
+    # Title Block container
     html.Div([
         html.Div([
             html.H3("Super Speedy Environment Canada Weather Download")
@@ -115,7 +121,7 @@ layout = html.Div([
                 html.H6('Click on station in map and select in table below prior to generating data', style={
                     'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
                 # List of selected station features
-                dash_table.DataTable(id='selected-station-table',
+                dash_table.DataTable(id='selected-station',
                                      columns=[{"name": col, "id": col} for col in df.columns],
                                      data=[],
                                      style_table={'overflowX': 'scroll'},
@@ -134,7 +140,7 @@ layout = html.Div([
             html.Div([
                 html.Div([
                     html.Label("Station Name:", style={'font-weight': 'bold', 'font-size': '18px'}),
-                    dcc.Input(id='stn_name', value='', type='text', placeholder='Enter Station Name',
+                    dcc.Input(id='station-name', value='', type='text', placeholder='Enter Station Name',
                               style={'width': '50%'})
                 ], style={'margin-left': '1rem', 'margin-bottom': '0.5rem'}),
                 html.Div([
@@ -153,13 +159,13 @@ layout = html.Div([
                 html.Div([
                     html.Label("Data Available Between:", style={'font-weight': 'bold', 'font-size': '18px'}),
                     html.Div([
-                        dcc.Dropdown(id='first_year',
+                        dcc.Dropdown(id='first-year',
                                      options=[{'label': str(year), 'value': str(year)} for year in
                                               range(1840, datetime.now().year + 1, 1)],
                                      placeholder='First Year')
                     ], style={'width': '40%', 'display': 'inline-block'}),
                     html.Div([
-                        dcc.Dropdown(id='last_year',
+                        dcc.Dropdown(id='last-year',
                                      options=[{'label': str(year), 'value': str(year)} for year in
                                               range(1840, datetime.now().year + 1, 1)],
                                      placeholder='Last Year')
@@ -189,56 +195,55 @@ layout = html.Div([
                     html.Label('Download Dates:',
                                style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
                     html.Div([
-                        dcc.Dropdown(id='download_year_start',
+                        dcc.Dropdown(id='download-year-start',
                                      options=[{'label': year, 'value': year} for year in ['Select A Station']],
                                      placeholder='Start Year')
                     ], style={'width': '45%', 'display': 'inline-block', 'margin-bottom': '1rem'}),
                     html.Div([
-                        dcc.Dropdown(id='download_month_start',
+                        dcc.Dropdown(id='download-month-start',
                                      options=[{'label': month, 'value': month} for month in ['Select A Station']],
                                      placeholder='Start Month')
                     ], style={'width': '45%', 'display': 'inline-block', 'margin-left': '0.5rem',
                               'margin-bottom': '1rem'}),
                     html.Div([
-                        dcc.Dropdown(id='download_year_end',
+                        dcc.Dropdown(id='download-year-end',
                                      options=[{'label': year, 'value': year} for year in ['Select A Station']],
                                      placeholder='End Year')
                     ], style={'width': '45%', 'display': 'inline-block'}),
                     html.Div([
-                        dcc.Dropdown(id='download_month_end',
+                        dcc.Dropdown(id='download-month-end',
                                      options=[{'label': month, 'value': month} for month in ['Select A Station']],
                                      placeholder='End Month')
                     ], style={'width': '45%', 'display': 'inline-block', 'margin-left': '0.5rem'}),
                     html.Div([
-                        html.Label(id='download_message', children='')
+                        html.Label(id='download-message', children='')
                     ], style={'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem'}),
                 ], style={'width': '55%', 'display': 'inline-block', 'margin-left': '1rem'}),
                 html.Div([
                     html.Label('Download Interval:',
                                style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
                     html.Div([
-                        dcc.Dropdown(id='download_frequency',
+                        dcc.Dropdown(id='download-frequency',
                                      options=[{'label': frequency, 'value': frequency} for frequency in
                                               ['Select A Station']],
                                      placeholder='Frequency')
                     ], style={'width': '85%', 'margin-bottom': '2rem'}),
                     html.Div([
-                        html.A(id='fetch-link', children='1. GENERATE DATA')
+                        html.A(id='generate-data-button', children='1. GENERATE DATA')
                     ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px red dashed', 'width': '85%',
                               'text-align': 'left'}),
-                    html.Div(id='toggle_button_vis', children=[
+                    html.Div(id='toggle-button-vis', children=[
                         html.Div([
-                            html.A(id='download-link', children='2. DOWNLOAD DATA')
+                            html.A(id='download-data-button', children='2. DOWNLOAD DATA')
                         ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px green dashed', 'width': '85%',
                                   'text-align': 'left', 'margin-top': '1.5rem'}),
                         html.Div([
-                            html.A('3. VIEW GRAPH DATA', id='graph-link', href="/pages/graph_page")
+                            html.A('3. VIEW GRAPH DATA', id='graph-data-button', href="/pages/graph_page")
                         ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px blue dashed', 'width': '85%',
                                   'text-align': 'left', 'margin-top': '1.5rem'}),
                         ], style={'visibility': 'hidden'}),
-                    html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode())),
-                                                     "What Up Council!"],
-                             style={'visibility': 'hidden', 'text-align': 'center'}),
+                    html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode()))],
+                             style={'visibility': 'hidden', 'text-align': 'right'}),
                 ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'}),
             ], style={'display': 'flex'})
         ], className='five columns', style={'margin-top': '1rem'}),
@@ -248,21 +253,21 @@ layout = html.Div([
 
 ######################################### INTERACTION CALLBACKS ########################################################
 
-# Filter Data and Output to Station Map and Table
+# Filter Data and Output to Station Map and Table Data
 @app.callback(
     [Output(component_id='station-map', component_property='figure'),
-     Output(component_id='selected-station-table', component_property='data')],
+     Output(component_id='selected-station', component_property='data')],
     [Input(component_id='province', component_property='value'),
      Input(component_id='frequency', component_property='value'),
-     Input(component_id='first_year', component_property='value'),
-     Input(component_id='last_year', component_property='value'),
+     Input(component_id='first-year', component_property='value'),
+     Input(component_id='last-year', component_property='value'),
      Input(component_id='latitude', component_property='value'),
      Input(component_id='longitude', component_property='value'),
      Input(component_id='radius', component_property='value'),
-     Input(component_id='stn_name', component_property='value'),
+     Input(component_id='station-name', component_property='value'),
      Input(component_id='station-map', component_property='clickData')]
 )
-def data_filter(province, frequency, start, end, lat, lon, radius, stn_name, click_highlight):
+def data_filter(province, frequency, first_year, end_year, lat, lon, radius, station_name, on_map_click):
     # Don't use global variable to filter
     df_filter = df
 
@@ -283,14 +288,14 @@ def data_filter(province, frequency, start, end, lat, lon, radius, stn_name, cli
         df_filter = df_filter
 
     # Date Filter
-    if start and end and frequency == 'Hourly':
-        df_filter = df_filter[(df_filter['First Year (Hourly)'] <= np.int64(end)) & (df_filter['Last Year (Hourly)'] >= np.int64(start))]
-    elif start and end and frequency == 'Daily':
-        df_filter = df_filter[(df_filter['First Year (Daily)'] <= np.int64(end)) & (df_filter['Last Year (Daily)'] >= np.int64(start))]
-    elif start and end and frequency == 'Monthly':
-        df_filter = df_filter[(df_filter['First Year (Monthly)'] <= np.int64(end)) & (df_filter['Last Year (Monthly)'] >= np.int64(start))]
-    elif start and end:
-        df_filter = df_filter[(df_filter['First Year'] <= np.int64(end)) & (df_filter['Last Year'] >= np.int64(start))]
+    if first_year and end_year and frequency == 'Hourly':
+        df_filter = df_filter[(df_filter['First Year (Hourly)'] <= np.int64(end_year)) & (df_filter['Last Year (Hourly)']>= np.int64(first_year))]
+    elif first_year and end_year and frequency == 'Daily':
+        df_filter = df_filter[(df_filter['First Year (Daily)'] <= np.int64(end_year)) & (df_filter['Last Year (Daily)'] >= np.int64(first_year))]
+    elif first_year and end_year and frequency == 'Monthly':
+        df_filter = df_filter[(df_filter['First Year (Monthly)'] <= np.int64(end_year)) & (df_filter['Last Year (Monthly)'] >= np.int64(first_year))]
+    elif first_year and end_year:
+        df_filter = df_filter[(df_filter['First Year'] <= np.int64(end_year)) & (df_filter['Last Year'] >= np.int64(first_year))]
     else:
         df_filter = df_filter
 
@@ -302,47 +307,41 @@ def data_filter(province, frequency, start, end, lat, lon, radius, stn_name, cli
         df_filter = df_filter
 
     # Name Filter
-    if stn_name:
-        df_filter = df_filter[df_filter.Name.str.contains(stn_name.upper())]
+    if station_name:
+        df_filter = df_filter[df_filter.Name.str.contains(station_name.upper())]
     else:
         df_filter = df_filter
 
-    # Highlight Click Data on Map
-    if click_highlight and not df_filter[(df_filter.Latitude == click_highlight['points'][0]['lat']) &
-                                             (df_filter.Longitude == click_highlight['points'][0]['lon'])].empty:
-        lat_highlight = click_highlight['points'][0]['lat']
-        lon_highlight = click_highlight['points'][0]['lon']
-        name_highlight = click_highlight['points'][0]['text']
+    # Highlight Click Data on Map and Populate Table
+    if on_map_click and not df_filter[(df_filter.Latitude == on_map_click['points'][0]['lat']) &
+                                             (df_filter.Longitude == on_map_click['points'][0]['lon'])].empty:
+        selected_lat = on_map_click['points'][0]['lat']
+        selected_lon = on_map_click['points'][0]['lon']
+        selected_station_name = on_map_click['points'][0]['text']
+        table_data = df_filter[(df_filter.Latitude == on_map_click['points'][0]['lat']) &
+                               (df_filter.Longitude == on_map_click['points'][0]['lon'])].to_dict('records')
     else:
-        lat_highlight = []
-        lon_highlight = []
-        name_highlight = []
-
-    # Get Table data as click data on map
-    if click_highlight and not df_filter[(df_filter.Latitude == click_highlight['points'][0]['lat']) &
-                                                (df_filter.Longitude == click_highlight['points'][0][
-                                                    'lon'])].empty:
-        table_data = df_filter[(df_filter.Latitude == click_highlight['points'][0]['lat']) &
-                               (df_filter.Longitude == click_highlight['points'][0]['lon'])].to_dict('records')
-    else:
+        selected_lat = []
+        selected_lon = []
+        selected_station_name = []
         table_data = []
 
-    return station_map(df_filter, lat_highlight, lon_highlight, name_highlight, 'blue'), table_data
+    return station_map(df_filter, selected_lat, selected_lon, selected_station_name, 'blue'), table_data
 
 # Set download frequency based on table data
 @app.callback(
-    [Output(component_id='download_frequency', component_property='options'),
-     Output(component_id='download_month_start', component_property='options'),
-     Output(component_id='download_month_end', component_property='options'),
-     Output(component_id='download_year_start', component_property='options'),
-     Output(component_id='download_year_end', component_property='options')],
-    [Input(component_id='selected-station-table', component_property='data'),
-     Input(component_id='selected-station-table', component_property='selected_rows'),
-     Input(component_id='download_frequency', component_property='value')]
+    [Output(component_id='download-frequency', component_property='options'),
+     Output(component_id='download-month-start', component_property='options'),
+     Output(component_id='download-month-end', component_property='options'),
+     Output(component_id='download-year-start', component_property='options'),
+     Output(component_id='download-year-end', component_property='options')],
+    [Input(component_id='selected-station', component_property='data'),
+     Input(component_id='selected-station', component_property='selected_rows'),
+     Input(component_id='download-frequency', component_property='value')]
 )
-def set_download_frequency_dropdown(data, selected_rows, selected_frequency):
-    if data and selected_rows:
-        df_selected_data = pd.DataFrame(data).iloc[selected_rows[0]]
+def set_download_frequency_dropdown(selected_station, selected_station_row, selected_frequency):
+    if selected_station and selected_station_row:
+        df_selected_data = pd.DataFrame(selected_station).iloc[selected_station_row[0]]
         available_frequency = df_selected_data[['First Year (Hourly)', 'First Year (Daily)', 'First Year (Monthly)']] \
             .replace('N/A', np.nan).dropna().index.to_list()
         download_frequency = [{'label': freq.split('(')[1][:-1], 'value': freq.split('(')[1][:-1]} for freq in available_frequency]
@@ -376,26 +375,26 @@ def set_download_frequency_dropdown(data, selected_rows, selected_frequency):
 
 # Set download message indicating to user what they will be getting
 @app.callback(
-    [Output(component_id='download_message', component_property='children'),
-     Output(component_id='download_message', component_property='style')],
-    [Input(component_id='selected-station-table', component_property='data'),
-     Input(component_id='download_year_start', component_property='value'),
-     Input(component_id='download_year_end', component_property='value'),
-     Input(component_id='download_month_start', component_property='value'),
-     Input(component_id='download_month_end', component_property='value'),
-     Input(component_id='download_frequency', component_property='value')]
+    [Output(component_id='download-message', component_property='children'),
+     Output(component_id='download-message', component_property='style')],
+    [Input(component_id='selected-station', component_property='data'),
+     Input(component_id='download-year-start', component_property='value'),
+     Input(component_id='download-year-end', component_property='value'),
+     Input(component_id='download-month-start', component_property='value'),
+     Input(component_id='download-month-end', component_property='value'),
+     Input(component_id='download-frequency', component_property='value')]
 )
-def set_download_message(selected_table_data, start_year, end_year, start_month, end_month, freq):
+def set_download_message(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency):
 
-    if selected_table_data and freq:
+    if selected_station and download_frequency:
 
-        if start_year and start_month and end_year and end_month:
-            df_selected_data = pd.DataFrame(selected_table_data)
-            start_date = datetime.strptime(str(start_year) + str(start_month) + '1', '%Y%m%d').date()
-            end_date = datetime.strptime(str(end_year) + str(end_month) + '1', '%Y%m%d').date()
+        if download_start_year and download_start_month and download_end_year and download_end_month:
+            df_selected_data = pd.DataFrame(selected_station)
+            start_date = datetime.strptime(str(download_start_year) + str(download_start_month) + '1', '%Y%m%d').date()
+            end_date = datetime.strptime(str(download_end_year) + str(download_end_month) + '1', '%Y%m%d').date()
             message = 'First select GENERATE DATA and once loading is complete select DOWNLOAD DATA to begin downloading "{} ' \
                       'data from {} to {} for station {} (station ID {})"' \
-                    .format(freq, start_date, end_date, df_selected_data.Name[0], df_selected_data['Station ID'][0])
+                    .format(download_frequency, start_date, end_date, df_selected_data.Name[0], df_selected_data['Station ID'][0])
             message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem', 'border': '2px red dashed'}
 
         else:
@@ -408,34 +407,34 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
 
     return message, message_style
 
-# Create and save file in /tmp and get server link
+# Send download to Celery background worker on Heroku and link to download button
 @app.callback(
-    [Output(component_id='download-link', component_property='href'),
+    [Output(component_id='download-data-button', component_property='href'),
      Output(component_id='task-id', component_property='children')],
-    [Input(component_id='selected-station-table', component_property='data'),
-     Input(component_id='download_year_start', component_property='value'),
-     Input(component_id='download_year_end', component_property='value'),
-     Input(component_id='download_month_start', component_property='value'),
-     Input(component_id='download_month_end', component_property='value'),
-     Input(component_id='download_frequency', component_property='value'),
-     Input(component_id='fetch-link', component_property='n_clicks')]
+    [Input(component_id='selected-station', component_property='data'),
+     Input(component_id='download-year-start', component_property='value'),
+     Input(component_id='download-year-end', component_property='value'),
+     Input(component_id='download-month-start', component_property='value'),
+     Input(component_id='download-month-end', component_property='value'),
+     Input(component_id='download-frequency', component_property='value'),
+     Input(component_id='generate-data-button', component_property='n_clicks')]
 )
-def set_download_message(selected_table_data, start_year, end_year, start_month, end_month, freq, clicks):
+def set_download_message(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency, generate_button_click):
     ctx = dash.callback_context  # Look for specific click event
 
-    if selected_table_data and start_year and start_month and end_year and end_month and freq and \
-        ctx.triggered[0]['prop_id'] == 'fetch-link.n_clicks' and clicks:
+    if selected_station and download_start_year and download_start_month and download_end_year and download_end_month and download_frequency and \
+        ctx.triggered[0]['prop_id'] == 'generate-data-button.n_clicks' and generate_button_click:
 
-        df_selected_data = pd.DataFrame(selected_table_data)
+        df_selected_data = pd.DataFrame(selected_station)
 
-        filename = 'ENV-CAN' + '-' + freq + '-' + 'Station' + str(df_selected_data['Station ID'][0]) + '-' + str(start_year) + '-' + str(end_year) + '.csv'
+        filename = 'ENV-CAN' + '-' + download_frequency + '-' + 'Station' + str(df_selected_data['Station ID'][0]) + '-' + str(download_start_year) + '-' + str(download_end_year) + '.csv'
         relative_filename = os.path.join('download', filename)
         link_path = '/{}'.format(relative_filename)
 
-        df_output_data = tasks.download_remote_data.apply_async([int(df_selected_data['Station ID'][0]), int(start_year),
-                                                                   int(start_month), int(end_year), int(end_month), freq,
+        download_task = tasks.download_remote_data.apply_async([int(df_selected_data['Station ID'][0]), int(download_start_year),
+                                                                   int(download_start_month), int(download_end_year), int(download_end_month), download_frequency,
                                                                    bulk_data_pathname])
-        task_id = str(df_output_data.id)
+        task_id = str(download_task.id)
 
     else:
         link_path = ''
@@ -446,7 +445,8 @@ def set_download_message(selected_table_data, start_year, end_year, start_month,
 # Update Task Status
 @app.callback(
     [Output(component_id='task-status', component_property='children'),
-     Output(component_id='toggle_button_vis', component_property='style')],
+     Output(component_id='toggle-button-vis', component_property='style'),
+     Output(component_id='data-store', component_property='data')],
     [Input(component_id='task-id', component_property='children'),
      Input(component_id='task-interval', component_property='n_intervals')]
 )
@@ -456,13 +456,16 @@ def update_task_status(task_id, n_int):
         task_status_init = AsyncResult(id=task_id, app=celery_app).state
         if task_status_init == 'SUCCESS':
             download_graph_viz = {'visibility': 'visible'}
+            task_download_result = AsyncResult(id=task_id, app=celery_app).result
         else:
             download_graph_viz = {'visibility': 'hidden'}
+            task_download_result = {}
     else:
         task_status_init = None
         download_graph_viz = {'visibility': 'hidden'}
+        task_download_result = {}
 
-    return task_status_init, download_graph_viz
+    return task_status_init, download_graph_viz, task_download_result
 
 @app.callback(
     Output(component_id='task-interval', component_property='interval'),

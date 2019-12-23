@@ -34,5 +34,10 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
     with s3.open(os.environ['S3_BUCKET']+'/'+filename, 'w') as f:
         data.to_csv(f)
 
-    return data.to_dict()
+    # Filter for memory storage
+    data = data[[x for x in data if not x.endswith('Flag')]]
+    cols_to_keep = ('Station Name', 'Climate ID', 'Date/Time', 'Temp', 'Wind', 'Mean', 'Total', 'Snow')
+    data = data[[x for x in data if x.startswith(cols_to_keep)]]
+
+    return data.to_dict('records')
 
