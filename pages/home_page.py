@@ -88,7 +88,7 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
 layout = html.Div([
     # Hold task-id and task-status hidden
     html.Div(id='task-id', children='none', style={'display': 'none'}),
-    html.Div(id='task-status', children='none'),
+    html.Div(id='task-status', children='none', style={'display': 'none'}),
     # Update refresh interval to avoid Heroku timeout on preload spinner
     dcc.Interval(
         id='task-interval',
@@ -238,7 +238,7 @@ layout = html.Div([
                         ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px green dashed', 'width': '85%',
                                   'text-align': 'left', 'margin-top': '1.5rem'}),
                         html.Div([
-                            html.A('3. VIEW GRAPH DATA', id='graph-data-button', href="/pages/graph_page")
+                            html.A('3. GRAPH DATA', id='graph-data-button', href="/pages/graph_page")
                         ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px blue dashed', 'width': '85%',
                                   'text-align': 'left', 'margin-top': '1.5rem'}),
                         ], style={'visibility': 'hidden'}),
@@ -328,7 +328,7 @@ def data_filter(province, frequency, first_year, end_year, lat, lon, radius, sta
 
     return station_map(df_filter, selected_lat, selected_lon, selected_station_name, 'blue'), table_data
 
-# Set download frequency based on table data
+# Set download filters based on selected data
 @app.callback(
     [Output(component_id='download-frequency', component_property='options'),
      Output(component_id='download-month-start', component_property='options'),
@@ -339,7 +339,7 @@ def data_filter(province, frequency, first_year, end_year, lat, lon, radius, sta
      Input(component_id='selected-station', component_property='selected_rows'),
      Input(component_id='download-frequency', component_property='value')]
 )
-def set_download_frequency_dropdown(selected_station, selected_station_row, selected_frequency):
+def update_download_dropdowns(selected_station, selected_station_row, selected_frequency):
     if selected_station and selected_station_row:
         df_selected_data = pd.DataFrame(selected_station).iloc[selected_station_row[0]]
         available_frequency = df_selected_data[['First Year (Hourly)', 'First Year (Daily)', 'First Year (Monthly)']] \
@@ -384,7 +384,7 @@ def set_download_frequency_dropdown(selected_station, selected_station_row, sele
      Input(component_id='download-month-end', component_property='value'),
      Input(component_id='download-frequency', component_property='value')]
 )
-def set_download_message(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency):
+def update_download_message(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency):
 
     if selected_station and download_frequency:
 
@@ -410,7 +410,8 @@ def set_download_message(selected_station, download_start_year, download_end_yea
 # Send download to Celery background worker on Heroku and link to download button
 @app.callback(
     [Output(component_id='download-data-button', component_property='href'),
-     Output(component_id='task-id', component_property='children')],
+     Output(component_id='task-id', component_property='children'),
+     Output(component_id='filename-store', component_property='data')],
     [Input(component_id='selected-station', component_property='data'),
      Input(component_id='download-year-start', component_property='value'),
      Input(component_id='download-year-end', component_property='value'),
@@ -419,7 +420,7 @@ def set_download_message(selected_station, download_start_year, download_end_yea
      Input(component_id='download-frequency', component_property='value'),
      Input(component_id='generate-data-button', component_property='n_clicks')]
 )
-def set_download_message(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency, generate_button_click):
+def background_download_task(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency, generate_button_click):
     ctx = dash.callback_context  # Look for specific click event
 
     if selected_station and download_start_year and download_start_month and download_end_year and download_end_month and download_frequency and \
@@ -434,38 +435,40 @@ def set_download_message(selected_station, download_start_year, download_end_yea
         download_task = tasks.download_remote_data.apply_async([int(df_selected_data['Station ID'][0]), int(download_start_year),
                                                                    int(download_start_month), int(download_end_year), int(download_end_month), download_frequency,
                                                                    bulk_data_pathname])
+
         task_id = str(download_task.id)
 
     else:
         link_path = ''
         task_id = None
+        filename = None
 
-    return link_path, task_id
+    return link_path, task_id, filename
 
 # Update Task Status
 @app.callback(
     [Output(component_id='task-status', component_property='children'),
      Output(component_id='toggle-button-vis', component_property='style'),
-     Output(component_id='data-store', component_property='data')],
+     Output(component_id='column-name-store', component_property='data')],
     [Input(component_id='task-id', component_property='children'),
      Input(component_id='task-interval', component_property='n_intervals')]
 )
 def update_task_status(task_id, n_int):
 
     if task_id:
-        task_status_init = AsyncResult(id=task_id, app=celery_app).state
-        if task_status_init == 'SUCCESS':
-            download_graph_viz = {'visibility': 'visible'}
-            task_download_result = AsyncResult(id=task_id, app=celery_app).result
+        current_task_status = AsyncResult(id=task_id, app=celery_app).state
+        if current_task_status == 'SUCCESS':
+            button_visibility = {'visibility': 'visible'}
+            task_result = AsyncResult(id=task_id, app=celery_app).result
         else:
-            download_graph_viz = {'visibility': 'hidden'}
-            task_download_result = {}
+            button_visibility = {'visibility': 'hidden'}
+            task_result = {}
     else:
-        task_status_init = None
-        download_graph_viz = {'visibility': 'hidden'}
-        task_download_result = {}
+        current_task_status = None
+        button_visibility = {'visibility': 'visible'}
+        task_result = {}
 
-    return task_status_init, download_graph_viz, task_download_result
+    return current_task_status, button_visibility, task_result
 
 @app.callback(
     Output(component_id='task-interval', component_property='interval'),
@@ -496,7 +499,7 @@ def update_spinner(task_status):
 # Flask Magik
 @app.server.route('/download/<filename>')
 def serve_static(filename):
-    s3 = boto3.client('s3', region_name='us-west-2',
+    s3 = boto3.client('s3', region_name='us-east-1',
                       aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
                       aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
     url = s3.generate_presigned_url('get_object', Params={'Bucket': os.environ['S3_BUCKET'], 'Key': filename}, ExpiresIn=100)
