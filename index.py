@@ -9,6 +9,7 @@ app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id='filename-store', storage_type='session'),
     dcc.Store(id='column-name-store', storage_type='session'),
+    dcc.Store(id='station-metadata-store', storage_type='session'),
     html.Div(id='page-content')
 ])
 

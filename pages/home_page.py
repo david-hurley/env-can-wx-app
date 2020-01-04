@@ -89,6 +89,7 @@ layout = html.Div([
     # Hold task-id and task-status hidden
     html.Div(id='task-id', children='none', style={'display': 'none'}),
     html.Div(id='task-status', children='none', style={'display': 'none'}),
+    html.Div(id='message-status', children='none', style={'display': 'none'}),
     # Update refresh interval to avoid Heroku timeout on preload spinner
     dcc.Interval(
         id='task-interval',
@@ -242,8 +243,9 @@ layout = html.Div([
                         ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px blue dashed', 'width': '85%',
                                   'text-align': 'left', 'margin-top': '1.5rem'}),
                         ], style={'visibility': 'hidden'}),
-                    html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode()))],
-                             style={'visibility': 'hidden', 'text-align': 'right'}),
+                    html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode())),
+                                                     html.Label('Please be patient. A 10 year download may take a few minutes.')],
+                             style={'visibility': 'hidden'}),
                 ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'}),
             ], style={'display': 'flex'})
         ], className='five columns', style={'margin-top': '1rem'}),
@@ -376,7 +378,8 @@ def update_download_dropdowns(selected_station, selected_station_row, selected_f
 # Set download message indicating to user what they will be getting
 @app.callback(
     [Output(component_id='download-message', component_property='children'),
-     Output(component_id='download-message', component_property='style')],
+     Output(component_id='download-message', component_property='style'),
+     Output(component_id='message-status', component_property='children')],
     [Input(component_id='selected-station', component_property='data'),
      Input(component_id='download-year-start', component_property='value'),
      Input(component_id='download-year-end', component_property='value'),
@@ -386,9 +389,24 @@ def update_download_dropdowns(selected_station, selected_station_row, selected_f
 )
 def update_download_message(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency):
 
-    if selected_station and download_frequency:
+    if selected_station and download_frequency and download_start_year and download_start_month and download_end_year and download_end_month:
 
-        if download_start_year and download_start_month and download_end_year and download_end_month:
+        if download_start_year == download_end_year and download_start_month == download_end_month:
+            message = 'Download dates must be different'
+            message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem', 'border': '2px red dashed'}
+            message_status = None
+
+        elif download_start_year > download_end_year:
+            message = 'Download start date must preceed download end date'
+            message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem', 'border': '2px red dashed'}
+            message_status = None
+
+        elif download_start_year == download_end_year and download_start_month > download_end_month:
+            message = 'Download start date must preceed download end date'
+            message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem', 'border': '2px red dashed'}
+            message_status = None
+
+        else:
             df_selected_data = pd.DataFrame(selected_station)
             start_date = datetime.strptime(str(download_start_year) + str(download_start_month) + '1', '%Y%m%d').date()
             end_date = datetime.strptime(str(download_end_year) + str(download_end_month) + '1', '%Y%m%d').date()
@@ -396,35 +414,34 @@ def update_download_message(selected_station, download_start_year, download_end_
                       'data from {} to {} for station {} (station ID {})"' \
                     .format(download_frequency, start_date, end_date, df_selected_data.Name[0], df_selected_data['Station ID'][0])
             message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem', 'border': '2px red dashed'}
-
-        else:
-            message = []
-            message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem'}
-
+            message_status = 'PROCEED'
     else:
         message = []
         message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem'}
+        message_status = None
 
-    return message, message_style
+    return message, message_style, message_status
 
 # Send download to Celery background worker on Heroku and link to download button
 @app.callback(
     [Output(component_id='download-data-button', component_property='href'),
      Output(component_id='task-id', component_property='children'),
-     Output(component_id='filename-store', component_property='data')],
+     Output(component_id='filename-store', component_property='data'),
+     Output(component_id='station-metadata-store', component_property='data')],
     [Input(component_id='selected-station', component_property='data'),
      Input(component_id='download-year-start', component_property='value'),
      Input(component_id='download-year-end', component_property='value'),
      Input(component_id='download-month-start', component_property='value'),
      Input(component_id='download-month-end', component_property='value'),
      Input(component_id='download-frequency', component_property='value'),
-     Input(component_id='generate-data-button', component_property='n_clicks')]
+     Input(component_id='generate-data-button', component_property='n_clicks'),
+     Input(component_id='message-status', component_property='children')]
 )
-def background_download_task(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency, generate_button_click):
+def background_download_task(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency, generate_button_click, message_status):
     ctx = dash.callback_context  # Look for specific click event
 
     if selected_station and download_start_year and download_start_month and download_end_year and download_end_month and download_frequency and \
-        ctx.triggered[0]['prop_id'] == 'generate-data-button.n_clicks' and generate_button_click:
+        ctx.triggered[0]['prop_id'] == 'generate-data-button.n_clicks' and generate_button_click and message_status:
 
         df_selected_data = pd.DataFrame(selected_station)
 
@@ -437,13 +454,15 @@ def background_download_task(selected_station, download_start_year, download_end
                                                                    bulk_data_pathname])
 
         task_id = str(download_task.id)
+        station_metadata = {k: v for v, k in enumerate([df_selected_data.Latitude[0], df_selected_data.Longitude[0], df_selected_data.Name[0], df_selected_data['Climate ID'][0]])}
 
     else:
         link_path = ''
         task_id = None
         filename = None
+        station_metadata = None
 
-    return link_path, task_id, filename
+    return link_path, task_id, filename, station_metadata
 
 # Update Task Status
 @app.callback(
@@ -470,6 +489,7 @@ def update_task_status(task_id, n_int):
 
     return current_task_status, button_visibility, task_result
 
+# Update refresh interval
 @app.callback(
     Output(component_id='task-interval', component_property='interval'),
     [Input(component_id='task-status', component_property='children')]
@@ -483,6 +503,7 @@ def update_interval(task_status):
 
     return interval
 
+# Control spinner visibility
 @app.callback(
     Output(component_id='spinner', component_property='style'),
     [Input(component_id='task-status', component_property='children')]
@@ -490,7 +511,7 @@ def update_interval(task_status):
 def update_spinner(task_status):
 
     if task_status == 'PENDING':
-        loading_div_viz = {'visibility': 'visible'}
+        loading_div_viz = {'visibility': 'visible', 'text-align': 'center'}
     else:
         loading_div_viz = {'visibility': 'hidden'}
 

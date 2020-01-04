@@ -9,15 +9,16 @@ import io
 
 from app import app
 
-def download_data_graph(x,y, title):
+def download_data_graph(x, y, title, yname, xname):
     return {'data': [
             {'x': x,
-             'y': y,
-             'name': 'first plot'
+             'y': y
              }
     ], 'layout': {
-        'height': 350,
-        'title': title
+        'height': 300,
+        'title': title,
+        'yaxis':{'title': yname},
+        'xaxis':{'title': xname}
     }
     }
 
@@ -40,12 +41,16 @@ layout = html.Div([
     html.Div([
         html.Div([
             dcc.Loading(id='load-graph', children=[
-                html.Div(dcc.Graph(id='download-data-graph1', figure=download_data_graph([], [], 'None')))], type='defualt')],className='six columns'),
+                html.Div([dcc.Graph(id='download-data-graph1', figure=download_data_graph([], [], 'No Data Selected', '', ''))], style={'border': '2px black solid'}),
+                html.Div([dcc.Graph(id='download-data-graph2', figure=download_data_graph([], [], 'No Data Selected', '', ''))], style={'border': '2px black solid'})
+            ], type='defualt')
+        ], className='nine columns'),
 
         html.Div([
-            html.Div([dcc.Graph(id='download-data-graph2', figure=download_data_graph([], [], 'None'))], style={'height': '70%'}),
             dcc.Dropdown(id='data-selector', options=[{'label': variable, 'value': variable} for variable in ['Select a Variable']],
-                         placeholder='Variable To Plot')], className='six columns')
+                         placeholder='Variable To Plot'),
+        ], className='three columns')
+
     ], className='row')
 ])
 
@@ -64,10 +69,11 @@ def update_interval_time(column_names, n_int):
     [Output(component_id='download-data-graph1', component_property='figure'),
      Output(component_id='download-data-graph2', component_property='figure')],
     [Input(component_id='filename-store', component_property='data'),
+     Input(component_id='station-metadata-store', component_property='data'),
      Input(component_id='data-selector', component_property='value'),
      Input(component_id='interval-kickstart', component_property='n_intervals')]
 )
-def update_data_graph(filename, column_name, n_int):
+def update_data_graph(filename, station_metadata, column_name, n_int):
     if column_name:
         s3 = boto3.client('s3', region_name='us-east-1',
                           aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
@@ -89,9 +95,12 @@ def update_data_graph(filename, column_name, n_int):
         file_str = ''.join(req.decode('utf-8') for req in records)
         df = pd.read_csv(io.StringIO(file_str), names=['Date/Time', column_name])
 
-        figure = download_data_graph(df['Date/Time'], df[column_name], column_name)
+        station_metadata = list(station_metadata.keys())
+        figure1 = download_data_graph(df['Date/Time'], df[column_name], '{}: {}N, {}W'.format(station_metadata[3], station_metadata[1], station_metadata[2]), column_name, 'Date')
+        figure2 = download_data_graph(df['Date/Time'], df[column_name], '', column_name, 'Date')
 
     else:
-        figure = download_data_graph([], [], 'Some')
+        figure1 = download_data_graph([], [], 'No Data Selected', '', '')
+        figure2 = download_data_graph([], [], '', '', '')
 
-    return figure, figure
+    return figure1, figure2
