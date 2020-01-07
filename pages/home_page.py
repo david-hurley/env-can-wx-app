@@ -25,6 +25,9 @@ df.replace(np.nan, 'N/A', inplace=True)
 today = datetime.today()
 yearnow = today.year-1
 df['Last Year'].loc[df['Last Year'] == yearnow] = yearnow+1
+df['Last Year (Hourly)'].loc[df['Last Year (Hourly)'] == yearnow] = yearnow+1
+df['Last Year (Daily)'].loc[df['Last Year (Daily)'] == yearnow] = yearnow+1
+df['Last Year (Monthly)'].loc[df['Last Year (Monthly)'] == yearnow] = yearnow+1
 
 # URL Path to Bulk Download Data from Environment Canada
 bulk_data_pathname = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.html?' \
