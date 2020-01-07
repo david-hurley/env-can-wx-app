@@ -36,7 +36,7 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
 
     # Filter for memory storage
     data_filt = data[[x for x in data if not x.endswith('Flag')]]
-    cols_to_keep = ('Station Name', 'Climate ID', 'Date/Time', 'Temp', 'Wind', 'Mean', 'Total', 'Snow')
+    cols_to_keep = ('Date/Time', 'Temp', 'Wind', 'Mean', 'Total', 'Snow')
     data_filt = data_filt[[x for x in data_filt if x.startswith(cols_to_keep)]]
     data_filt_col_names = {c: i for i, c in enumerate(data_filt.columns)}
 

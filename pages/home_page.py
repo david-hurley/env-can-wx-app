@@ -22,6 +22,9 @@ from app import app
 # Environment Canada - Station List and Metadata
 df = pd.read_csv('station-metadata-processed.csv')
 df.replace(np.nan, 'N/A', inplace=True)
+today = datetime.today()
+yearnow = today.year-1
+df['Last Year'].loc[df['Last Year'] == yearnow] = yearnow+1
 
 # URL Path to Bulk Download Data from Environment Canada
 bulk_data_pathname = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.html?' \
