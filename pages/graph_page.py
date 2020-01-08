@@ -11,6 +11,9 @@ import plotly.graph_objs as go
 
 from app import app
 
+######################################### PLOTS ########################################################################
+
+# Plot Timeseries graph
 def timeseries_plot(x, y, title, yname, xname):
     return {'data': [
             {'x': x,
@@ -24,16 +27,18 @@ def timeseries_plot(x, y, title, yname, xname):
     }
     }
 
-# def boxplot(x,y):
-#     trace0 = go.Box(
-#         y=
-#     )
-#     trace1 = go.Box(
-#         y=y1
-#     )
-#     data = [trace0, trace1]
-#
-#     dcc.Graph(figure={'data': data}, id='box-plot-1')
+# Plot Boxplot
+def boxplot(x,y):
+    return {
+        'data': [
+            go.Box(
+                y=y,
+                x=x
+            )
+        ]
+    }
+
+######################################### LAYOUT #######################################################################
 
 layout = html.Div([
     dcc.Interval(
@@ -55,7 +60,7 @@ layout = html.Div([
             dcc.Loading(id='load-graph', children=[
                 html.Div([dcc.Graph(id='download-data-graph1', figure=timeseries_plot([], [], 'No Data Selected', '', ''))],
                          style={'margin-top': '1rem', 'border': '2px black solid'}),
-                html.Div([dcc.Graph(id='download-data-graph2', figure=timeseries_plot([], [], 'No Data Selected', '', ''))],
+                html.Div([dcc.Graph(id='download-data-graph2', figure=boxplot([], []))],
                          style={'margin-top': '1rem', 'border': '2px black solid'})
             ], type='defualt')
         ], className='nine columns'),
@@ -69,6 +74,9 @@ layout = html.Div([
     ], className='row')
 ])
 
+######################################### INTERACTION CALLBACKS ########################################################
+
+# Trigger update on page click
 @app.callback(
     [Output(component_id='interval-kickstart', component_property='interval'),
      Output(component_id='data-selector', component_property='options')],
@@ -80,6 +88,7 @@ def update_interval_time(column_names, n_int):
     interval = 24*60*60*1*1000
     return interval, column_dropdown_options
 
+# Fetch S3 data and graph
 @app.callback(
     [Output(component_id='download-data-graph1', component_property='figure'),
      Output(component_id='download-data-graph2', component_property='figure'),
@@ -113,17 +122,19 @@ def update_data_graph(filename, station_metadata, column_name, n_int):
         if column_name == 'Wind Dir (10s deg)':
             df[column_name] = df[column_name]*10
 
+        boxplot_months = pd.to_datetime(df['Date/Time']).dt.month
+
         table_key = ['Min', '5th', '10th', '25th', 'Mean', '75th', '90th', '95th', 'Max']
         table_value = [df[column_name].quantile(P) for P in [0, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 1]]
         table_data = [dict(zip(table_key, table_value))]
 
         station_metadata = list(station_metadata.keys())
         figure1 = timeseries_plot(df['Date/Time'], df[column_name], '{}: {}N, {}W'.format(station_metadata[3], station_metadata[1], station_metadata[2]), column_name, 'Date')
-        figure2 = timeseries_plot(df['Date/Time'], df[column_name], '', column_name, 'Date')
+        figure2 = boxplot(list(boxplot_months), list(df[column_name]))
 
     else:
         figure1 = timeseries_plot([], [], 'No Data Selected', '', '')
-        figure2 = timeseries_plot([], [], '', '', '')
+        figure2 = boxplot([], [])
         table_data = []
 
     return figure1, figure2, table_data
