@@ -28,15 +28,19 @@ def timeseries_plot(x, y, title, yname, xname):
     }
 
 # Plot Boxplot
-def boxplot(x,y):
-    return {
-        'data': [
-            go.Box(
-                y=y,
-                x=x
-            )
-        ]
-    }
+def boxplot(x,y,title, yname, xname):
+    data = go.Box(
+        y=y,
+        x=x
+    )
+
+    layout = go.Layout(
+        title={'text': title, 'x': 0.5},
+        yaxis={'title': yname},
+        xaxis={'title': xname},
+        height=400
+    )
+    return go.Figure(data=data, layout=layout)
 
 ######################################### LAYOUT #######################################################################
 
@@ -60,7 +64,7 @@ layout = html.Div([
             dcc.Loading(id='load-graph', children=[
                 html.Div([dcc.Graph(id='download-data-graph1', figure=timeseries_plot([], [], 'No Data Selected', '', ''))],
                          style={'margin-top': '1rem', 'border': '2px black solid'}),
-                html.Div([dcc.Graph(id='download-data-graph2', figure=boxplot([], []))],
+                html.Div([dcc.Graph(id='download-data-graph2', figure=boxplot([], [], 'No Data Selected', '', ''))],
                          style={'margin-top': '1rem', 'border': '2px black solid'})
             ], type='defualt')
         ], className='nine columns'),
@@ -68,8 +72,7 @@ layout = html.Div([
         html.Div([
             html.Label("Variable to Graph:", style={'font-weight': 'bold', 'font-size': '18px'}),
             dcc.Dropdown(id='data-selector', options=[{'label': variable, 'value': variable} for variable in ['Select a Variable']],
-                         placeholder='Variable To Plot', style={'margin-top': '1rem', 'margin-bottom': '15rem'}),
-            dash_table.DataTable(id='wx-table', columns=[{"name": i, "id": i} for i in ['Min', '5th', '10th', '25th', 'Mean', '75th', '90th', '95th', 'Max']], data=[])
+                         placeholder='Variable To Plot', style={'margin-top': '1rem', 'margin-bottom': '15rem'})
         ], className='three columns')
 
     ], className='row')
@@ -92,8 +95,7 @@ def update_interval_time(column_names, n_int):
 # Fetch S3 data and graph
 @app.callback(
     [Output(component_id='download-data-graph1', component_property='figure'),
-     Output(component_id='download-data-graph2', component_property='figure'),
-     Output(component_id='wx-table', component_property='data')],
+     Output(component_id='download-data-graph2', component_property='figure')],
     [Input(component_id='filename-store', component_property='data'),
      Input(component_id='station-metadata-store', component_property='data'),
      Input(component_id='data-selector', component_property='value'),
@@ -123,19 +125,14 @@ def update_data_graph(filename, station_metadata, column_name, n_int):
         if column_name == 'Wind Dir (10s deg)':
             df[column_name] = df[column_name]*10
 
-        boxplot_months = pd.to_datetime(df['Date/Time']).dt.month
-
-        table_key = ['Min', '5th', '10th', '25th', 'Mean', '75th', '90th', '95th', 'Max']
-        table_value = [df[column_name].quantile(P) for P in [0, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 1]]
-        table_data = [dict(zip(table_key, table_value))]
+        boxplot_months = pd.to_datetime(df['Date/Time']).dt.strftime('%b')
 
         station_metadata = list(station_metadata.keys())
         figure1 = timeseries_plot(df['Date/Time'], df[column_name], '{}: {}N, {}W'.format(station_metadata[3], station_metadata[1], station_metadata[2]), column_name, 'Date')
-        figure2 = boxplot(list(boxplot_months), list(df[column_name]))
+        figure2 = boxplot(list(boxplot_months), list(df[column_name]), '{}: {}N, {}W'.format(station_metadata[3], station_metadata[1], station_metadata[2]), column_name, 'Month')
 
     else:
         figure1 = timeseries_plot([], [], 'No Data Selected', '', '')
-        figure2 = boxplot([], [])
-        table_data = []
+        figure2 = boxplot([], [], 'No Data Selected', '', '')
 
-    return figure1, figure2, table_data
+    return figure1, figure2
