@@ -6,7 +6,7 @@ import dash_html_components as html
 
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import tasks
 from flask import redirect
@@ -415,9 +415,9 @@ def update_download_message(selected_station, download_start_year, download_end_
         else:
             df_selected_data = pd.DataFrame(selected_station)
             start_date = datetime.strptime(str(download_start_year) + str(download_start_month) + '1', '%Y%m%d').date()
-            end_date = datetime.strptime(str(download_end_year) + str(download_end_month) + '1', '%Y%m%d').date()
-            message = 'First select GENERATE DATA and once loading is complete select DOWNLOAD DATA to begin downloading "{} ' \
-                      'data from {} to {} for station {} (station ID {})"' \
+            end_date = datetime.strptime(str(download_end_year) + str(download_end_month) + '1', '%Y%m%d').date() - timedelta(1)
+            message = 'First select GENERATE DATA and once loading is complete select DOWNLOAD DATA to begin downloading {} ' \
+                      'data from {} to {} for station {} (station ID {})' \
                     .format(download_frequency, start_date, end_date, df_selected_data.Name[0], df_selected_data['Station ID'][0])
             message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem', 'border': '2px red dashed'}
             message_status = 'PROCEED'

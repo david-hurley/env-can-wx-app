@@ -66,6 +66,7 @@ layout = html.Div([
         ], className='nine columns'),
 
         html.Div([
+            html.Label("Variable to Graph:", style={'font-weight': 'bold', 'font-size': '18px'}),
             dcc.Dropdown(id='data-selector', options=[{'label': variable, 'value': variable} for variable in ['Select a Variable']],
                          placeholder='Variable To Plot', style={'margin-top': '1rem', 'margin-bottom': '15rem'}),
             dash_table.DataTable(id='wx-table', columns=[{"name": i, "id": i} for i in ['Min', '5th', '10th', '25th', 'Mean', '75th', '90th', '95th', 'Max']], data=[])

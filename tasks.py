@@ -7,23 +7,33 @@ celery_app = celery.Celery('download')
 celery_app.conf.update(
     broker_url=os.environ['REDIS_URL'],
     result_backend=os.environ['REDIS_URL'],
-    redis_max_connections=4)
+    redis_max_connections=20,
+    broker_pool_limit=None)
 
 @celery_app.task(bind=True)
 def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency, url_raw):
 
-    download_dates = pd.date_range(start=str(start_year) + '/' + str(start_month),
-                                   end=str(end_year) + '/' + str(end_month), freq='M')
-
     if frequency == 'Hourly':
+        download_dates = pd.date_range(start=str(start_year) + '/' + str(start_month),
+                                       end=str(end_year) + '/' + str(end_month), freq='M')
         urls = [url_raw.format(station_id, date.year, date.month, 1) for date in download_dates]
         data = pd.concat((pd.read_csv(url) for url in urls))
     elif frequency == 'Daily':
-        urls = [url_raw.format(station_id, date.year, date.month, 2) for date in download_dates]
-        data = pd.concat((pd.read_csv(url) for url in urls))
+        if start_year == end_year:
+            url = url_raw.format(station_id, start_year, start_month, 2)
+            data = pd.read_csv(url)
+        else:
+            download_dates = pd.date_range(start=str(start_year) + '/' + str(start_month),
+                                           end=str(end_year+1) + '/' + str(end_month), freq='Y')
+            urls = [url_raw.format(station_id, date.year, date.month, 2) for date in download_dates]
+            data = pd.concat((pd.read_csv(url) for url in urls))
+        data = data[(pd.to_datetime(data['Date/Time']) >= pd.to_datetime(str(start_year)+'-'+str(start_month)+'-01'))
+                    & (pd.to_datetime(data['Date/Time']) <= pd.to_datetime(str(end_year)+'-'+str(end_month)+'-01')-pd.DateOffset(1))]
     else:
-        urls = [url_raw.format(station_id, date.year, date.month, 3) for date in download_dates]
-        data = pd.concat((pd.read_csv(url) for url in urls))
+        url = url_raw.format(station_id, start_year, start_month, 3)
+        data = pd.read_csv(url)
+        data = data[(pd.to_datetime(data['Date/Time']) >= pd.to_datetime(str(start_year)+'-'+str(start_month)))
+                    & (pd.to_datetime(data['Date/Time']) <= pd.to_datetime(str(end_year)+'-'+str(end_month))-pd.DateOffset(1))]
 
     filename = 'ENV-CAN' + '-' + frequency + '-' + 'Station' + str(station_id) + '-' + str(start_year) + '-' + str(end_year) + '.csv'
 
