@@ -7,7 +7,6 @@ celery_app = celery.Celery('download')
 celery_app.conf.update(
     broker_url=os.environ['REDIS_URL'],
     result_backend=os.environ['REDIS_URL'],
-    redis_max_connections=20,
     broker_pool_limit=None)
 
 @celery_app.task(bind=True)
