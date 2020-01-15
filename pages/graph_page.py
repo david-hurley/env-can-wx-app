@@ -1,7 +1,6 @@
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
-import dash_table
 
 import pandas as pd
 import os
@@ -52,7 +51,7 @@ layout = html.Div([
     ),
     html.Div([
         html.Div([
-            html.H3("Super Speedy Environment Canada Weather Download")
+            html.H3("Weather History Canada")
         ], style={'display': 'inline-block', 'align-self': 'center', 'margin': '0 auto'}),
         html.Div([
             dcc.Link('Home Page', href='/pages/home_page')

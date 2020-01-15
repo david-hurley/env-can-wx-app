@@ -2,14 +2,19 @@ import celery
 import pandas as pd
 import os
 import s3fs
+import numpy as np
 
 celery_app = celery.Celery('download')
 celery_app.conf.update(
     broker_url=os.environ['REDIS_URL'],
     result_backend=os.environ['REDIS_URL'],
-    broker_pool_limit=None)
+    redis_max_connections=4,
+    broker_transport_options={
+        'max_connections': 4
+    },
+    broker_pool_limit=3)
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, soft_time_limit=1200)
 def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency, url_raw):
 
     if frequency == 'Hourly':
@@ -47,6 +52,9 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
     data_filt = data[[x for x in data if not x.endswith('Flag')]]
     cols_to_keep = ('Date/Time', 'Temp', 'Wind', 'Mean', 'Total', 'Snow')
     data_filt = data_filt[[x for x in data_filt if x.startswith(cols_to_keep)]]
+    vals_to_remove = ['B', 'E', 'M', 'S', 'T', 'A', 'C', 'F', 'L', 'N', 'Y']
+    data_filt = data_filt.replace(vals_to_remove, np.nan)
+    data_filt = data_filt.dropna(how='all', axis=1)
     data_filt_col_names = {c: i for i, c in enumerate(data_filt.columns)}
 
     return data_filt_col_names

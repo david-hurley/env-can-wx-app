@@ -105,7 +105,7 @@ layout = html.Div([
     # Title Block container
     html.Div([
         html.Div([
-            html.H3("Super Speedy Environment Canada Weather Download")
+            html.H3("Weather History Canada")
         ], style={'display': 'inline-block', 'align-self': 'center', 'margin': '0 auto'}),
         html.Div([
             dcc.Link('About', href='/pages/about')
