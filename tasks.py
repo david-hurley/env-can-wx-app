@@ -12,7 +12,7 @@ celery_app.conf.update(
     broker_transport_options={
         'max_connections': 4
     },
-    broker_pool_limit=3)
+    broker_pool_limit=1)
 
 @celery_app.task(bind=True, soft_time_limit=1200)
 def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency, url_raw):

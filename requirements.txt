@@ -4,12 +4,12 @@ boto3==1.10.37
 botocore==1.13.37
 celery==4.3.0
 Click==7.0
-dash==1.5.1
+dash==1.9.0
 dash-bootstrap-components==0.7.2
-dash-core-components==1.4.0
-dash-html-components==1.0.1
-dash-renderer==1.2.0
-dash-table==4.5.0
+dash-core-components==1.8.0
+dash-html-components==1.0.2
+dash-renderer==1.2.4
+dash-table==4.6.0
 docutils==0.15.2
 et-xmlfile==1.0.1
 Flask==1.1.1
