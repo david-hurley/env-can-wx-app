@@ -486,11 +486,11 @@ def update_task_status(task_id, n_int):
             button_visibility = {'visibility': 'visible'}
             task_result = AsyncResult(id=task_id, app=celery_app).result
         else:
-            button_visibility = {'visibility': 'hidden'}
+            button_visibility = {'visibility': 'visible'}
             task_result = {}
     else:
         current_task_status = None
-        button_visibility = {'visibility': 'hidden'}
+        button_visibility = {'visibility': 'visible'}
         task_result = {}
 
     return current_task_status, button_visibility, task_result
