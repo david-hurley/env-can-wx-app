@@ -489,7 +489,7 @@ def update_task_status(task_id, n_int):
             button_visibility = {'visibility': 'hidden'}
             task_result = {}
     else:
-        current_task_status = 'Trigger'
+        current_task_status = None
         button_visibility = {'visibility': 'hidden'}
         task_result = {}
 
