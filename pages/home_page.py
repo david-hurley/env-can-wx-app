@@ -93,9 +93,9 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
 
 layout = html.Div([
     # Hold task-id and task-status hidden
-    html.Div(id='task-id', children='none', style={'display': 'none'}),
-    html.Div(id='task-status', children='none', style={'display': 'none'}),
-    html.Div(id='message-status', children='none', style={'display': 'none'}),
+    html.Div(id='task-id', children='none'),
+    html.Div(id='task-status', children='none'),
+    html.Div(id='message-status', children='none'),
     # Update refresh interval to avoid Heroku timeout on preload spinner
     dcc.Interval(
         id='task-interval',
@@ -486,11 +486,11 @@ def update_task_status(task_id, n_int):
             button_visibility = {'visibility': 'visible'}
             task_result = AsyncResult(id=task_id, app=celery_app).result
         else:
-            button_visibility = {'visibility': 'visible'}
+            button_visibility = {'visibility': 'hidden'}
             task_result = {}
     else:
         current_task_status = None
-        button_visibility = {'visibility': 'visible'}
+        button_visibility = {'visibility': 'hidden'}
         task_result = {}
 
     return current_task_status, button_visibility, task_result
