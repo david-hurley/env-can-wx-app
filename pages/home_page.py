@@ -96,6 +96,7 @@ layout = html.Div([
     html.Div(id='task-id', children='none'),
     html.Div(id='task-status', children='none'),
     html.Div(id='message-status', children='none'),
+    html.Div(id='test', children='none'),
     # Update refresh interval to avoid Heroku timeout on preload spinner
     dcc.Interval(
         id='task-interval',
@@ -433,7 +434,8 @@ def update_download_message(selected_station, download_start_year, download_end_
     [Output(component_id='download-data-button', component_property='href'),
      Output(component_id='task-id', component_property='children'),
      Output(component_id='filename-store', component_property='data'),
-     Output(component_id='station-metadata-store', component_property='data')],
+     Output(component_id='station-metadata-store', component_property='data'),
+     Output(component_id='test', component_property='children')],
     [Input(component_id='selected-station', component_property='data'),
      Input(component_id='download-year-start', component_property='value'),
      Input(component_id='download-year-end', component_property='value'),
@@ -461,14 +463,16 @@ def background_download_task(selected_station, download_start_year, download_end
 
         task_id = str(download_task.id)
         station_metadata = {k: v for v, k in enumerate([df_selected_data.Latitude[0], df_selected_data.Longitude[0], df_selected_data.Name[0], df_selected_data['Climate ID'][0]])}
+        current_task_status = AsyncResult(id=task_id, app=celery_app).state
 
     else:
         link_path = ''
         task_id = None
         filename = None
         station_metadata = None
+        current_task_status = None
 
-    return link_path, task_id, filename, station_metadata
+    return link_path, task_id, filename, station_metadata, current_task_status
 
 # Update Task Status
 @app.callback(
@@ -486,7 +490,7 @@ def update_task_status(task_id, n_int):
             button_visibility = {'visibility': 'visible'}
             task_result = AsyncResult(id=task_id, app=celery_app).result
         else:
-            button_visibility = {'visibility': 'hidden'}
+            button_visibility = {'visibility': 'visible'}
             task_result = {}
     else:
         current_task_status = None
