@@ -71,7 +71,7 @@ layout = html.Div([
         html.Div([
             html.Label("Variable to Graph:", style={'font-weight': 'bold', 'font-size': '18px'}),
             dcc.Dropdown(id='data-selector', options=[{'label': variable, 'value': variable} for variable in ['Select a Variable']],
-                         placeholder='Variable To Plot', style={'margin-top': '1rem', 'margin-bottom': '15rem'})
+                         placeholder='Variable To Plot', style={'margin-top': '1rem', 'margin-top': '1rem', 'margin-bottom': '15rem'})
         ], className='three columns')
 
     ], className='row')

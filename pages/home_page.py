@@ -7,6 +7,7 @@ import dash_html_components as html
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+import time
 import os
 import tasks
 from flask import redirect
@@ -93,10 +94,9 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
 
 layout = html.Div([
     # Hold task-id and task-status hidden
-    html.Div(id='task-id', children='none'),
-    html.Div(id='task-status', children='none'),
-    html.Div(id='message-status', children='none'),
-    html.Div(id='test', children='none'),
+    html.Div(id='task-id', children='none', style={'display': 'none'}),
+    html.Div(id='task-status', children='none', style={'display': 'none'}),
+    html.Div(id='message-status', children='none', style={'display': 'none'}),
     # Update refresh interval to avoid Heroku timeout on preload spinner
     dcc.Interval(
         id='task-interval',
@@ -248,11 +248,11 @@ layout = html.Div([
                         html.Div([
                             html.A('3. GRAPH DATA', id='graph-data-button', href="/pages/graph_page")
                         ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px blue dashed', 'width': '85%',
-                                  'text-align': 'left', 'margin-top': '1.5rem'}),
-                        ], style={'visibility': 'hidden'}),
+                                  'text-align': 'left', 'margin-top': '1.5rem'})],
+                             style={'display': 'none'}),
                     html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode())),
                                                      html.Label('Please be patient. A 10 year download may take a few minutes.')],
-                             style={'visibility': 'hidden'}),
+                             style={'display': 'none'}),
                 ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'}),
             ], style={'display': 'flex'})
         ], className='five columns', style={'margin-top': '1rem'}),
@@ -434,8 +434,7 @@ def update_download_message(selected_station, download_start_year, download_end_
     [Output(component_id='download-data-button', component_property='href'),
      Output(component_id='task-id', component_property='children'),
      Output(component_id='filename-store', component_property='data'),
-     Output(component_id='station-metadata-store', component_property='data'),
-     Output(component_id='test', component_property='children')],
+     Output(component_id='station-metadata-store', component_property='data')],
     [Input(component_id='selected-station', component_property='data'),
      Input(component_id='download-year-start', component_property='value'),
      Input(component_id='download-year-end', component_property='value'),
@@ -460,19 +459,17 @@ def background_download_task(selected_station, download_start_year, download_end
         download_task = tasks.download_remote_data.apply_async([int(df_selected_data['Station ID'][0]), int(download_start_year),
                                                                    int(download_start_month), int(download_end_year), int(download_end_month), download_frequency,
                                                                    bulk_data_pathname])
-
+        time.sleep(1)
         task_id = str(download_task.id)
         station_metadata = {k: v for v, k in enumerate([df_selected_data.Latitude[0], df_selected_data.Longitude[0], df_selected_data.Name[0], df_selected_data['Climate ID'][0]])}
-        current_task_status = AsyncResult(id=task_id, app=celery_app).state
 
     else:
         link_path = ''
         task_id = None
         filename = None
         station_metadata = None
-        current_task_status = None
 
-    return link_path, task_id, filename, station_metadata, current_task_status
+    return link_path, task_id, filename, station_metadata
 
 # Update Task Status
 @app.callback(
@@ -487,14 +484,14 @@ def update_task_status(task_id, n_int):
     if task_id:
         current_task_status = AsyncResult(id=task_id, app=celery_app).state
         if current_task_status == 'SUCCESS':
-            button_visibility = {'visibility': 'visible'}
+            button_visibility = {'display': 'block'}
             task_result = AsyncResult(id=task_id, app=celery_app).result
         else:
-            button_visibility = {'visibility': 'visible'}
+            button_visibility = {'display': 'none'}
             task_result = {}
     else:
-        current_task_status = None
-        button_visibility = {'visibility': 'hidden'}
+        current_task_status = 'test'
+        button_visibility = {'display': 'none'}
         task_result = {}
 
     return current_task_status, button_visibility, task_result
@@ -521,9 +518,9 @@ def update_interval(task_status):
 def update_spinner(task_status):
 
     if task_status == 'PENDING':
-        loading_div_viz = {'visibility': 'visible', 'text-align': 'center'}
+        loading_div_viz = {'display': 'block', 'text-align': 'center'}
     else:
-        loading_div_viz = {'visibility': 'hidden'}
+        loading_div_viz = {'display': 'none'}
 
     return loading_div_viz
 
