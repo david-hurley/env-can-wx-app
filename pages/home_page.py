@@ -7,7 +7,6 @@ import dash_html_components as html
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-import time
 import os
 import tasks
 from flask import redirect
@@ -94,7 +93,7 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
 
 layout = html.Div([
     # Hold task-id and task-status hidden
-    html.Div(id='task-id', children='none', style={'display': 'none'}),
+    dcc.Store(id='task-id', storage_type='memory'),
     html.Div(id='task-status', children='none', style={'display': 'none'}),
     html.Div(id='message-status', children='none', style={'display': 'none'}),
     # Update refresh interval to avoid Heroku timeout on preload spinner
@@ -432,7 +431,7 @@ def update_download_message(selected_station, download_start_year, download_end_
 # Send download to Celery background worker on Heroku and link to download button
 @app.callback(
     [Output(component_id='download-data-button', component_property='href'),
-     Output(component_id='task-id', component_property='children'),
+     Output(component_id='task-id', component_property='data'),
      Output(component_id='filename-store', component_property='data'),
      Output(component_id='station-metadata-store', component_property='data')],
     [Input(component_id='selected-station', component_property='data'),
@@ -459,7 +458,6 @@ def background_download_task(selected_station, download_start_year, download_end
         download_task = tasks.download_remote_data.apply_async([int(df_selected_data['Station ID'][0]), int(download_start_year),
                                                                    int(download_start_month), int(download_end_year), int(download_end_month), download_frequency,
                                                                    bulk_data_pathname])
-        time.sleep(1)
         task_id = str(download_task.id)
         station_metadata = {k: v for v, k in enumerate([df_selected_data.Latitude[0], df_selected_data.Longitude[0], df_selected_data.Name[0], df_selected_data['Climate ID'][0]])}
 
@@ -475,26 +473,28 @@ def background_download_task(selected_station, download_start_year, download_end
 @app.callback(
     [Output(component_id='task-status', component_property='children'),
      Output(component_id='toggle-button-vis', component_property='style'),
-     Output(component_id='column-name-store', component_property='data')],
-    [Input(component_id='task-id', component_property='children'),
+     Output(component_id='column-name-store', component_property='data'),
+     Output(component_id='test', component_property='children')],
+    [Input(component_id='task-id', component_property='data'),
      Input(component_id='task-interval', component_property='n_intervals')]
 )
 def update_task_status(task_id, n_int):
-
     if task_id:
         current_task_status = AsyncResult(id=task_id, app=celery_app).state
         if current_task_status == 'SUCCESS':
             button_visibility = {'display': 'block'}
             task_result = AsyncResult(id=task_id, app=celery_app).result
+            current_task_status = None
         else:
             button_visibility = {'display': 'none'}
             task_result = {}
+            #current_task_status = None
     else:
-        current_task_status = 'test'
+        current_task_status = 'missed'
         button_visibility = {'display': 'none'}
         task_result = {}
 
-    return current_task_status, button_visibility, task_result
+    return current_task_status, button_visibility, task_result, n_int
 
 # Update refresh interval
 @app.callback(
@@ -518,7 +518,7 @@ def update_interval(task_status):
 def update_spinner(task_status):
 
     if task_status == 'PENDING':
-        loading_div_viz = {'display': 'block', 'text-align': 'center'}
+        loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
     else:
         loading_div_viz = {'display': 'none'}
 
