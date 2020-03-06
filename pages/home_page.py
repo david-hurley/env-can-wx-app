@@ -471,30 +471,17 @@ def background_download_task(selected_station, download_start_year, download_end
 
 # Update Task Status
 @app.callback(
-    [Output(component_id='task-status', component_property='children'),
-     Output(component_id='toggle-button-vis', component_property='style'),
-     Output(component_id='column-name-store', component_property='data'),
-     Output(component_id='test', component_property='children')],
+    Output(component_id='task-status', component_property='children'),
     [Input(component_id='task-id', component_property='data'),
      Input(component_id='task-interval', component_property='n_intervals')]
 )
 def update_task_status(task_id, n_int):
     if task_id:
         current_task_status = AsyncResult(id=task_id, app=celery_app).state
-        if current_task_status == 'SUCCESS':
-            button_visibility = {'display': 'block'}
-            task_result = AsyncResult(id=task_id, app=celery_app).result
-            current_task_status = None
-        else:
-            button_visibility = {'display': 'none'}
-            task_result = {}
-            #current_task_status = None
     else:
-        current_task_status = 'missed'
-        button_visibility = {'display': 'none'}
-        task_result = {}
+        current_task_status = None
 
-    return current_task_status, button_visibility, task_result, n_int
+    return current_task_status
 
 # Update refresh interval
 @app.callback(
@@ -510,6 +497,20 @@ def update_interval(task_status):
 
     return interval
 
+# Update button visibility
+@app.callback(
+    Output(component_id='toggle-button-vis', component_property='style'),
+    [Input(component_id='task-status', component_property='children'),
+     Input(component_id='message-status', component_property='children')]
+)
+def update_button_visibility(task_status, message_status):
+    if task_status == 'SUCCESS' and message_status:
+        button_visibility = {'display': 'block'}
+    else:
+        button_visibility = {'display': 'none'}
+
+    return button_visibility
+
 # Control spinner visibility
 @app.callback(
     Output(component_id='spinner', component_property='style'),
@@ -523,6 +524,21 @@ def update_spinner(task_status):
         loading_div_viz = {'display': 'none'}
 
     return loading_div_viz
+
+# Output results and forget celery task
+@app.callback(
+    Output(component_id='column-name-store', component_property='data'),
+    [Input(component_id='task-id', component_property='data'),
+     Input(component_id='task-status', component_property='children')]
+)
+def update_task_status(task_id, task_status):
+    if task_status == 'SUCCESS':
+        task_result = AsyncResult(id=task_id, app=celery_app).result
+        forget = AsyncResult(id=task_id, app=celery_app).forget()
+    else:
+        task_result = {}
+
+    return task_result
 
 # Flask Magik
 @app.server.route('/download/<filename>')

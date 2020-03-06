@@ -57,5 +57,7 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
     data_filt = data_filt.dropna(how='all', axis=1)
     data_filt_col_names = {c: i for i, c in enumerate(data_filt.columns)}
 
+    self.update_state(state='PROGRESS')
+
     return data_filt_col_names
 
