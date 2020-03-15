@@ -10,12 +10,14 @@ celery_app.conf.update(
     result_backend=os.environ['REDIS_URL'],
     redis_max_connections=4,
     broker_transport_options={
-        'max_connections': 4
+        'max_connections': 2
     },
-    broker_pool_limit=0)
+    broker_pool_limit=None)
 
 @celery_app.task(bind=True, soft_time_limit=1200)
 def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency, url_raw):
+
+    self.update_state(state='PROGRESS')
 
     if frequency == 'Hourly':
         download_dates = pd.date_range(start=str(start_year) + '/' + str(start_month),
@@ -56,8 +58,6 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
     data_filt = data_filt.replace(vals_to_remove, np.nan)
     data_filt = data_filt.dropna(how='all', axis=1)
     data_filt_col_names = {c: i for i, c in enumerate(data_filt.columns)}
-
-    self.update_state(state='PROGRESS')
 
     return data_filt_col_names
 
