@@ -492,6 +492,7 @@ def background_download_task(selected_station, download_start_year, download_end
     # Look for specific click event
     ctx = dash.callback_context
 
+    # If the user has set the download timeframe, frequency, and no current task is running then launch celery
     if selected_station and download_start_year and download_start_month and download_end_year and download_end_month and download_frequency and \
         ctx.triggered[0]['prop_id'] == 'generate-data-button.n_clicks' and generate_button_click and message_status and not task_status_state:
 
@@ -504,11 +505,12 @@ def background_download_task(selected_station, download_start_year, download_end
         download_task = tasks.download_remote_data.apply_async([int(df_selected_data['Station ID'][0]), int(download_start_year),
                                                                    int(download_start_month), int(download_end_year), int(download_end_month), download_frequency,
                                                                    bulk_data_pathname])
+        # task id of current celery task
         task_id = str(download_task.id)
-        time.sleep(0.5)
+        time.sleep(0.5) # Need a short sleep for task_id to catch up
         station_metadata = {k: v for v, k in enumerate([df_selected_data.Latitude[0], df_selected_data.Longitude[0], df_selected_data.Name[0], df_selected_data['Climate ID'][0]])}
         current_task_status = AsyncResult(id=task_id, app=celery_app).state
-        interval = 250
+        interval = 250 # set refresh interval short and to update task status
         button_visibility = {'display': 'none'}
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         task_result = {}
@@ -516,10 +518,12 @@ def background_download_task(selected_station, download_start_year, download_end
         return link_path, task_id, filename, station_metadata, current_task_status, interval, button_visibility, loading_div_viz, task_result
 
     elif task_status_state == 'PROGRESS':
+        # while task is running continue to update task status
         current_task_status = AsyncResult(id=task_id_state, app=celery_app).state
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
+    # once task is succesful remove task status, output results, and forget celery task
     elif task_status_state == 'SUCCESS':
         current_task_status = None
         interval = 24*60*60*1*1000
@@ -538,7 +542,7 @@ def background_download_task(selected_station, download_start_year, download_end
     else:
         raise dash.exceptions.PreventUpdate
 
-# Flask Magik
+# create a presigned url to download weather data from s3
 @app.server.route('/download/<filename>')
 def serve_static(filename):
     s3 = boto3.client('s3', region_name='us-east-1',
