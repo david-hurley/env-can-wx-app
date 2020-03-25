@@ -255,7 +255,8 @@ layout = html.Div([
                                   'text-align': 'left', 'margin-top': '1.5rem'})],
                              style={'display': 'none'}),
                     html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode())),
-                                                     html.Label('Please be patient. A 10 year download may take a few minutes.')],
+                                                     html.Label(id='spinner-label', children='Download Progress: Pending....',
+                                                     style={'font-weight': 'bold', 'font-size': '16px'})],
                              style={'display': 'none'}),
                 ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'}),
             ], style={'display': 'flex'})
@@ -472,7 +473,8 @@ def update_download_message(selected_station, download_start_year, download_end_
      Output(component_id='task-interval', component_property='interval'),
      Output(component_id='toggle-button-vis', component_property='style'),
      Output(component_id='spinner', component_property='style'),
-     Output(component_id='column-name-store', component_property='data')],
+     Output(component_id='column-name-store', component_property='data'),
+     Output(component_id='spinner-label', component_property='children')],
     [Input(component_id='selected-station', component_property='data'),
      Input(component_id='download-year-start', component_property='value'),
      Input(component_id='download-year-end', component_property='value'),
@@ -506,22 +508,24 @@ def background_download_task(selected_station, download_start_year, download_end
                                                                    int(download_start_month), int(download_end_year), int(download_end_month), download_frequency,
                                                                    bulk_data_pathname])
         # task id of current celery task
-        task_id = str(download_task.id)
-        time.sleep(0.5) # Need a short sleep for task_id to catch up
+        task_id = download_task.id
+        time.sleep(0.5)  # Need a short sleep for task_id to catch up
         station_metadata = {k: v for v, k in enumerate([df_selected_data.Latitude[0], df_selected_data.Longitude[0], df_selected_data.Name[0], df_selected_data['Climate ID'][0]])}
         current_task_status = AsyncResult(id=task_id, app=celery_app).state
-        interval = 250 # set refresh interval short and to update task status
+        current_task_progress = 'Download Progress: 0.0%'
+        interval = 250  # set refresh interval short and to update task status
         button_visibility = {'display': 'none'}
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         task_result = {}
 
-        return link_path, task_id, filename, station_metadata, current_task_status, interval, button_visibility, loading_div_viz, task_result
-
+        return link_path, task_id, filename, station_metadata, current_task_status, interval, button_visibility, loading_div_viz, task_result, current_task_progress
     elif task_status_state == 'PROGRESS':
         # while task is running continue to update task status
-        current_task_status = AsyncResult(id=task_id_state, app=celery_app).state
+        task = AsyncResult(id=task_id_state, app=celery_app)
+        current_task_status = task.state
+        current_task_progress = 'Download Progress: {}%'.format(task.info.get('current_percent_complete', 0))
 
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
     # once task is succesful remove task status, output results, and forget celery task
     elif task_status_state == 'SUCCESS':
@@ -530,14 +534,19 @@ def background_download_task(selected_station, download_start_year, download_end
         button_visibility = {'display': 'block'}
         loading_div_viz = {'display': 'none'}
         task_result = AsyncResult(id=task_id_state, app=celery_app).result
+        task_result.pop('current_percent_complete', None)  # remove percent complete key
         forget = AsyncResult(id=task_id_state, app=celery_app).forget()
 
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, interval, button_visibility, loading_div_viz, task_result
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, interval, button_visibility, loading_div_viz, task_result, dash.no_update
+
+    elif task_status_state == 'FAILURE':
+        current_task_progress = 'Download Failed. Please Try Again.'
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
     elif message_status:
         button_visibility = {'display': 'none'}
 
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, button_visibility, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, button_visibility, dash.no_update, dash.no_update, dash.no_update
 
     else:
         raise dash.exceptions.PreventUpdate
