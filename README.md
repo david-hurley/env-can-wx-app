@@ -32,8 +32,24 @@ pre-signed URL
 
 [app.py](https://github.com/david-hurley/env-can-wx-app/blob/master/app.py)
 
+[index.py](https://github.com/david-hurley/env-can-wx-app/blob/master/app.py)
+
+[tasks.py](https://github.com/david-hurley/env-can-wx-app/blob/master/tasks.py)
+
+[Procfile](https://github.com/david-hurley/env-can-wx-app/blob/master/Procfile)
+
+File defining commands to be run by Heroku web and worker dynos.
+
+[home_page.py](https://github.com/david-hurley/env-can-wx-app/blob/master/pages/home_page.py)
+
+[graph_page.py](https://github.com/david-hurley/env-can-wx-app/blob/master/pages/graph_page.py)
 
 
 
-web app to download wx data from env can
--metadata of stations added
+[about.py](https://github.com/david-hurley/env-can-wx-app/blob/master/pages/about.py)
+
+The What, Why, Who, and Where of Weather History Canada.
+
+[chriddyp.css](https://github.com/david-hurley/env-can-wx-app/blob/master/assets/chriddyp.css)
+
+Defualt Plotly Dash CSS styleguide
