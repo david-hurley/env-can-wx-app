@@ -8,7 +8,8 @@ for any desired record length. The goal of Weather History Canada is to better t
 experience by making it easier and quicker to download and interpret large amounts of 
 historical weather data. 
 
-[CLICK HERE TO VISIT SITE](WWW.WEATHERHISTORYCANADA.COM)
+
+[CLICK HERE TO VISIT SITE](http://www.weatherhistorycanada.com)
 
 ### Key Features
  
@@ -29,7 +30,8 @@ pre-signed URL
 
 ### What do the files do
 
- 
+[app.py](https://github.com/david-hurley/env-can-wx-app/blob/master/app.py)
+
 
 
 
