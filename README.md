@@ -14,7 +14,7 @@ historical weather data.
 ### Key Features
  
 - Built in pure Python using Plotly Dash and deployed to a Heroku free dyno
-- Periodic URL request via AWS Lambda to avoid sleeping of free dynos (i.e. quick load times)
+- Periodic URL request via AWS Lambda to avoid sleeping of free Heroku dynos (i.e. eliminates slow load times)
 - Map based searching and realtime filtering of weather stations based on multiple
 criterion
 - Execution of long-running tasks as background jobs via Celery and Heroku Redis to avoid 

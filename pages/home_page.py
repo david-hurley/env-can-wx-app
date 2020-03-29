@@ -1,32 +1,30 @@
 import dash
 import dash_table
-from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
-
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
 import os
 import tasks
-from flask import redirect
 import boto3
-from celery.result import AsyncResult
-from tasks import celery_app
 import base64
 import time
 
-
+from datetime import datetime, timedelta
+from celery.result import AsyncResult
+from flask import redirect
+from tasks import celery_app
+from dash.dependencies import Input, Output, State
 from app import app
 
 ######################################### DATA INPUTS AND LINKS ########################################################
 
-# create dataframe of weather station locations and available years of data
+#  create dataframe of weather station locations and available years of data
 df = pd.read_csv('station-metadata-processed.csv')
 df.replace(np.nan, 'N/A', inplace=True)
 
-# weather station dataframe stops at 2019, if data was available
-# in 2019 we assume it's available in the current year
+#  weather station dataframe stops at 2019, if data was available
+#  in 2019 we assume it's available in the current year
 today = datetime.today()
 yearnow = today.year
 df['Last Year'].loc[df['Last Year'] == 2019] = yearnow
@@ -34,30 +32,38 @@ df['Last Year (Hourly)'].loc[df['Last Year (Hourly)'] == 2019] = yearnow
 df['Last Year (Daily)'].loc[df['Last Year (Daily)'] == 2019] = yearnow
 df['Last Year (Monthly)'].loc[df['Last Year (Monthly)'] == 2019] = yearnow
 
-# url path to bulk download weather data from environment canada
+#  url path to bulk download weather data from environment canada
 bulk_data_pathname = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.html?' \
                      'format=csv&stationID={}&Year={}&Month={}&Day=1&timeframe={}'
 
-# preload spinner to base64 encode
+#  preload loading spinner to base64 encode
 spinner = base64.b64encode(open(os.path.join('assets', 'spinner.gif'), 'rb').read())
 
 ######################################### HELPER FUNCTIONS #############################################################
 
-# this function computes the distance between two locations on the earths surface
+#  this function computes the distance between two locations on the earths surface
 def compute_great_circle_distance(lat_user, lon_user, lat_station, lon_station):
+    """
+    Calculate the distance from a station to a specified location
+    :param lat_user: user specified latitude
+    :param lon_user: user specified longitude
+    :param lat_station: latitude of all stations
+    :param lon_station: longitude of all stations
+    :return: radial distance from user defined coordinates to all stations
+    """
 
     lat1, lon1 = np.radians([np.float64(lat_user), np.float64(lon_user)])
     lat2, lon2 = np.radians([lat_station, lon_station])
     a = np.sin((lat2 - lat1) / 2.0) ** 2 + np.cos(lat1) * \
         np.cos(lat2) * np.sin((lon2 - lon1) / 2.0) ** 2
     earth_radius_km = 6371
+
     return earth_radius_km * 2 * np.arcsin(np.sqrt(a))
 
 
 ######################################### PLOTS ########################################################################
 
 
-# add the weather station dataframe locations to a map
 def station_map(stations, lat_selected, lon_selected, name_selected, color):
     return {'data': [
         # weather station locations
@@ -75,8 +81,9 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
          'name': '',
          'text': [name_selected],
          'marker': {'color': 'red'}
-         }
-    ], 'layout': {
+         },
+    ],
+        'layout': {
         'showlegend': False,
         'uirevision': 'static',
         'height': 450,
@@ -86,183 +93,285 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
             'zoom': 2.5,
             'accesstoken': os.environ['MAPBOX_TOKEN']
         },
-        'margin': {
-            'l': 0, 'r': 0, 'b': 0, 't': 0
+        'margin': {'l': 0, 'r': 0, 'b': 0, 't': 0},
         },
-    }
     }
 
 
 ######################################### LAYOUT #######################################################################
 
 
-layout = html.Div([
-    # hold task-id and task-status hidden
-    html.Div(id='task-id', children=None, style={'display': 'none'}),
-    html.Div(id='task-status', children=None, style={'display': 'none'}),
-    html.Div(id='message-status', children=None, style={'display': 'none'}),
-    # update refresh interval to check celery task status and avoid Heroku timeout
-    dcc.Interval(
-        id='task-interval',
-        interval=24*60*60*1*1000,  # in milliseconds
-        n_intervals=0
-    ),
-    # title block
-    html.Div([
-        html.Div([
-            html.H3("Weather History Canada")
-        ], style={'display': 'inline-block', 'align-self': 'center', 'margin': '0 auto'}),
-        html.Div([
-            dcc.Link('About', href='/pages/about')
-        ], style={'textAlign': 'right', 'display': 'inline-block', 'margin-right': '2rem', 'font-size': '20px'})
-    ], className='twelve columns', style={'background': '#DCDCDC', 'border': '2px black solid', 'display': 'flex'}),
+app_layout = html.Div(
+    [
+        #  hidden div to store task-id, task-status, and message-status
+        html.Div(id='task-id',
+                 children=None,
+                 style={'display': 'none'}
+                 ),
+        html.Div(id='task-status',
+                 children=None,
+                 style={'display': 'none'}
+                 ),
+        html.Div(id='message-status',
+                 children=None,
+                 style={'display': 'none'}
+                 ),
 
-    # add map filter and download data functionality and a selected station table
-    html.Div([
-        # map and table container
-        html.Div([
-            # map container
-            html.Div([
-                # map of weather stations is populated in callbacks
-                dcc.Graph(id='station-map',
-                          figure=station_map(df, [], [], [], 'blue'),
-                          style={'border': '2px black solid'})
-            ]),
-            # table container
-            html.Div([
-                html.H6('Click on station in map and select in table below prior to generating data', style={
-                    'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
-                # list of user selected station data availability
-                dash_table.DataTable(id='selected-station',
-                                     columns=[{"name": col, "id": col} for col in df.columns],
-                                     data=[],
-                                     style_table={'overflowX': 'scroll'},
-                                     style_header={'border': '1px solid black',
-                                                   'backgroundColor': 'rgb(200, 200, 200)'},
-                                     style_cell={'border': '1px solid grey'},
-                                     row_selectable='single'),
-                html.Label('(Multiple stations at the same location may exist)',
-                           style={'textAlign': 'left', 'font-weight': 'bold'})
-            ], style={'margin-top': '1rem'}),
-        ], className='seven columns', style={'margin-top': '1rem'}),
+        #  page refresh interval
+        dcc.Interval(
+            id='task-refresh-interval',
+            interval=24*60*60*1*1000,  # in milliseconds
+            n_intervals=0
+        ),
+        #  header
+        html.Div(
+            [
+                html.Div(
+                    [
+                        html.H3("Weather History Canada"),
+                    ], className='app_header_title',
+                ),
+                html.Div(
+                    [
+                        dcc.Link('About', href='/pages/about')
+                    ], className='app_header_link',
+                ),
+            ],
+            className='twelve columns app_header',
+        ),
+        html.Div(
+            [
+                html.Div(
+                    [
+                        #  weather station map
+                        html.Div(
+                            [
+                                dcc.Graph(id='station-map',
+                                          figure=station_map(df, [], [], [], 'blue'))
+                            ], className='graph_style', style={'height': '450px'},
+                        ),
+                        # table container
+                        html.Div(
+                            [
+                                html.H6('Click on station in map and select in table below prior to generating data', className='filter_box_labels'),
+                                dash_table.DataTable(
+                                    id='selected-station',
+                                    columns=[{"name": col, "id": col} for col in df.columns],
+                                    data=[],
+                                    style_table={'overflowX': 'scroll'},
+                                    style_header={'border': '1px solid black', 'backgroundColor': 'rgb(200, 200, 200)'},
+                                    style_cell={'border': '1px solid grey'},
+                                    row_selectable='single'),
+                                html.Label('(Multiple stations at the same location may exist)', className='table_subtitle'),
+                            ], style={'margin-top': '1rem'},
+                        ),
+                    ],
+                    className='seven columns',
+                ),
+                html.Div(
+                    [
+                        html.Div(
+                            [
+                                #  station name input
+                                html.Label("Station Name:", className='filter_box_labels'),
+                                html.Div(
+                                    [
+                                        dcc.Input(
+                                            id='station-name',
+                                            value='', type='text',
+                                            placeholder='Enter Station Name',
+                                            className='station_name'),
+                                    ],
+                                ),
+                                #  province input
+                                html.Label("Province:", className='filter_box_labels'),
+                                html.Div(
+                                    [
+                                        dcc.Dropdown(
+                                            id='province',
+                                            options=[{'label': province, 'value': province} for province in df.Province.unique()],
+                                            style={'width': '90%'}),
+                                    ], className='flex_container_row',
+                                ),
+                                # data interval input
+                                html.Label("Data Interval:", className='filter_box_labels'),
+                                html.Div(
+                                    [
+                                        dcc.Dropdown(
+                                            id='frequency',
+                                            options=[{'label': frequency, 'value': frequency} for frequency in ['Hourly', 'Daily', 'Monthly']],
+                                            style={'width': '90%'}),
+                                    ], className='flex_container_row',
+                                ),
+                                # date input
+                                html.Label("Data Available Between:", className='filter_box_labels'),
+                                html.Div(
+                                    [
+                                        html.Div(
+                                            [
+                                                dcc.Dropdown(
+                                                    id='first-year',
+                                                    options=[{'label': str(year), 'value': str(year)} for year in range(1840, datetime.now().year + 1, 1)],
+                                                    placeholder='First Year'),
+                                            ], style={'width': '40%'},
+                                        ),
+                                        html.Div(
+                                            [
+                                                dcc.Dropdown(
+                                                    id='last-year',
+                                                    options=[{'label': str(year), 'value': str(year)} for year in range(1840, datetime.now().year + 1, 1)],
+                                                    placeholder='Last Year'),
+                                            ], style={'width': '40%'},
+                                        ),
+                                    ], className='flex_container_row',
+                                ),
+                                #  distance input
+                                html.Label("Distance Filter:", className='filter_box_labels'),
+                                html.Div(
+                                    [
+                                        html.Div(
+                                            [
+                                                dcc.Input(
+                                                    id='latitude',
+                                                    value='', type='text',
+                                                    placeholder='Latitude')
+                                            ],
+                                        ),
+                                        html.Div(
+                                            [
+                                                dcc.Input(
+                                                    id='longitude',
+                                                    value='',
+                                                    type='text',
+                                                    placeholder='Longitude')
+                                            ],
+                                        ),
+                                        html.Div(
+                                            [
+                                                dcc.Dropdown(
+                                                    id='radius',
+                                                    options=[{'label': radius, 'value': radius} for radius in ['10', '25', '50', '100']],
+                                                    placeholder='Kilometers From Location')
+                                            ], style={'width': '20%'},
+                                        ),
+                                    ], className='flex_container_row',
+                                ),
+                            ], className='filter_box_position',
+                        ),
+                        html.Div(
+                            [
+                                #  dowload dates and message
+                                html.Div(
+                                    [
+                                        html.Label('Download Dates:', className='filter_box_labels'),
+                                        html.Div(
+                                            [
+                                                html.Div(
+                                                    [
+                                                        dcc.Dropdown(
+                                                            id='download-year-start',
+                                                            options=[{'label': year, 'value': year} for year in ['Select A Station']],
+                                                            placeholder='Start Year')
+                                                    ], style={'width': '40%'},
+                                                ),
+                                                html.Div(
+                                                    [
+                                                        dcc.Dropdown(
+                                                            id='download-month-start',
+                                                            options=[{'label': month, 'value': month} for month in ['Select A Station']],
+                                                            placeholder='Start Month')
+                                                    ], style={'width': '40%'},
+                                                ),
+                                            ], className='flex_container_row', style={'margin-bottom': '1rem'},
+                                        ),
+                                        html.Div(
+                                            [
+                                                html.Div(
+                                                    [
+                                                        dcc.Dropdown(
+                                                            id='download-year-end',
+                                                            options=[{'label': year, 'value': year} for year in ['Select A Station']],
+                                                            placeholder='End Year')
+                                                    ], style={'width': '40%'},
+                                                ),
+                                                html.Div(
+                                                    [
+                                                        dcc.Dropdown(
+                                                            id='download-month-end',
+                                                            options=[{'label': month, 'value': month} for month in ['Select A Station']],
+                                                            placeholder='End Month')
+                                                    ], style={'width': '40%'},
+                                                ),
+                                            ], className='flex_container_row',
+                                        ),
+                                        html.Div(
+                                            [
+                                                html.Label(id='download-message', children='')
+                                            ], style={'width': '82%', 'margin-left': '0.5rem'},
+                                        ),
+                                    ], style={'width': '55%'},
+                                ),
+                                html.Div(
+                                    [
+                                        #  download interval and buttons
+                                        html.Label('Download Interval:', className='filter_box_labels', style={'margin-left': '3rem'}),
+                                        html.Div(
+                                            [
+                                                html.Div(
+                                                    [
+                                                        dcc.Dropdown(
+                                                            id='download-frequency',
+                                                            options=[{'label': frequency, 'value': frequency} for frequency in ['Select A Station']],
+                                                            placeholder='Frequency')
+                                                    ], style={'width': '85%'},
+                                                ),
+                                                html.Div(
+                                                    [
+                                                        html.A(id='generate-data-button', children='1. GENERATE DATA')
+                                                    ], className='data_buttons', style={'border': '2px red dashed','width': '85%'},
+                                                ),
+                                                html.Div(
+                                                    id='toggle-button-vis',
+                                                    children=
+                                                    [
+                                                        html.Div(
+                                                            [
+                                                                html.A(id='download-data-button', children='2. DOWNLOAD DATA')
+                                                            ], className='data_buttons', style={'border': '2px green dashed'},
+                                                        ),
+                                                        html.Div(
+                                                            [
+                                                                html.A('3. GRAPH DATA', id='graph-data-button', href="/pages/graph_page")
+                                                            ], className='data_buttons', style={'border': '2px blue dashed','margin-top': '1.5rem'},
+                                                        ),
+                                                    ], style={'display': 'none', 'width': '85%'},
+                                                ),
+                                                html.Div(
+                                                    id='spinner',
+                                                    children=
+                                                    [
+                                                        html.Img(src='data:image/gif;base64,{}'.format(spinner.decode())),
+                                                        html.Label(
+                                                            id='spinner-label',
+                                                            children='Download Progress: Pending....',
+                                                            style={'font-weight': 'bold', 'font-size': '16px'}),
+                                                    ], style={'display': 'none'},
+                                                ),
+                                            ], className='flex_container_column',
+                                        ),
 
-        # map filtering and download container
-        html.Div([
-            # map filtering container
-            html.Div([
-                html.Div([
-                    html.Label("Station Name:", style={'font-weight': 'bold', 'font-size': '18px'}),
-                    dcc.Input(id='station-name', value='', type='text', placeholder='Enter Station Name',
-                              style={'width': '50%'})
-                ], style={'margin-left': '1rem', 'margin-bottom': '0.5rem'}),
-                html.Div([
-                    html.Label("Province:", style={'font-weight': 'bold', 'font-size': '18px'}),
-                    dcc.Dropdown(id='province',
-                                 options=[{'label': province, 'value': province} for province in df.Province.unique()],
-                                 style={'width': '90%'})
-                ], style={'margin-left': '1rem', 'margin-bottom': '0.5rem'}),
-                html.Div([
-                    html.Label("Data Interval:", style={'font-weight': 'bold', 'font-size': '18px'}),
-                    dcc.Dropdown(id='frequency',
-                                 options=[{'label': frequency, 'value': frequency} for frequency in
-                                          ['Hourly', 'Daily', 'Monthly']],
-                                 style={'width': '90%'})
-                ], style={'margin-left': '1rem', 'margin-bottom': '0.5rem'}),
-                html.Div([
-                    html.Label("Data Available Between:", style={'font-weight': 'bold', 'font-size': '18px'}),
-                    html.Div([
-                        dcc.Dropdown(id='first-year',
-                                     options=[{'label': str(year), 'value': str(year)} for year in
-                                              range(1840, datetime.now().year + 1, 1)],
-                                     placeholder='First Year')
-                    ], style={'width': '40%', 'display': 'inline-block'}),
-                    html.Div([
-                        dcc.Dropdown(id='last-year',
-                                     options=[{'label': str(year), 'value': str(year)} for year in
-                                              range(1840, datetime.now().year + 1, 1)],
-                                     placeholder='Last Year')
-                    ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '1rem'})
-                ], style={'margin-left': '1rem', 'margin-bottom': '0.5rem'}),
-                html.Div([
-                    html.Label("Distance Filter:", style={'font-weight': 'bold', 'font-size': '18px'}),
-                    html.Div([
-                        dcc.Input(id='latitude', value='', type='text', placeholder='Latitude', style={'width': 150})
-                    ], style={'display': 'inline-block', 'vertical-align': 'middle'}),
-                    html.Div([
-                        dcc.Input(id='longitude', value='', type='text', placeholder='Longitude', style={'width': 150})
-                    ], style={'display': 'inline-block', 'margin-left': '1rem', 'vertical-align': 'middle'}),
-                    html.Div([
-                        dcc.Dropdown(id='radius',
-                                     options=[{'label': radius, 'value': radius} for radius in
-                                              ['10', '25', '50', '100']],
-                                     placeholder='Kilometers From Location')
-                    ], style={'width': '20%', 'display': 'inline-block', 'vertical-align': 'middle',
-                              'margin-left': '1rem'})
-                ], style={'margin-left': '1rem', 'margin-bottom': '1rem'})
-            ], style={'margin-bottom': '1rem', 'border': '2px black solid', 'textAlign': 'left'}),
-
-            # download container
-            html.Div([
-                html.Div([
-                    html.Label('Download Dates:',
-                               style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
-                    html.Div([
-                        dcc.Dropdown(id='download-year-start',
-                                     options=[{'label': year, 'value': year} for year in ['Select A Station']],
-                                     placeholder='Start Year')
-                    ], style={'width': '45%', 'display': 'inline-block', 'margin-bottom': '1rem'}),
-                    html.Div([
-                        dcc.Dropdown(id='download-month-start',
-                                     options=[{'label': month, 'value': month} for month in ['Select A Station']],
-                                     placeholder='Start Month')
-                    ], style={'width': '45%', 'display': 'inline-block', 'margin-left': '0.5rem',
-                              'margin-bottom': '1rem'}),
-                    html.Div([
-                        dcc.Dropdown(id='download-year-end',
-                                     options=[{'label': year, 'value': year} for year in ['Select A Station']],
-                                     placeholder='End Year')
-                    ], style={'width': '45%', 'display': 'inline-block'}),
-                    html.Div([
-                        dcc.Dropdown(id='download-month-end',
-                                     options=[{'label': month, 'value': month} for month in ['Select A Station']],
-                                     placeholder='End Month')
-                    ], style={'width': '45%', 'display': 'inline-block', 'margin-left': '0.5rem'}),
-                    html.Div([
-                        html.Label(id='download-message', children='')
-                    ], style={'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem'}),
-                ], style={'width': '55%', 'display': 'inline-block', 'margin-left': '1rem'}),
-                html.Div([
-                    html.Label('Download Interval:',
-                               style={'textAlign': 'left', 'font-weight': 'bold', 'font-size': '18px'}),
-                    html.Div([
-                        dcc.Dropdown(id='download-frequency',
-                                     options=[{'label': frequency, 'value': frequency} for frequency in
-                                              ['Select A Station']],
-                                     placeholder='Frequency')
-                    ], style={'width': '85%', 'margin-bottom': '2rem'}),
-                    html.Div([
-                        html.A(id='generate-data-button', children='1. GENERATE DATA')
-                    ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px red dashed', 'width': '85%',
-                              'text-align': 'left'}),
-                    html.Div(id='toggle-button-vis', children=[
-                        html.Div([
-                            html.A(id='download-data-button', children='2. DOWNLOAD DATA')
-                        ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px green dashed', 'width': '85%',
-                                  'text-align': 'left', 'margin-top': '1.5rem'}),
-                        html.Div([
-                            html.A('3. GRAPH DATA', id='graph-data-button', href="/pages/graph_page")
-                        ], style={'font-weight': 'bold', 'font-size': '16px', 'border': '2px blue dashed', 'width': '85%',
-                                  'text-align': 'left', 'margin-top': '1.5rem'})],
-                             style={'display': 'none'}),
-                    html.Div(id='spinner', children=[html.Img(src='data:image/gif;base64,{}'.format(spinner.decode())),
-                                                     html.Label(id='spinner-label', children='Download Progress: Pending....',
-                                                     style={'font-weight': 'bold', 'font-size': '16px'})],
-                             style={'display': 'none'}),
-                ], style={'width': '40%', 'display': 'inline-block', 'margin-left': '6rem'}),
-            ], style={'display': 'flex'})
-        ], className='five columns', style={'margin-top': '1rem'}),
-    ], className='row')
-])
+                                    ], style={'width': '40%'},
+                                ),
+                            ], className='download_box_position',
+                        ),
+                    ],
+                    className='five columns',
+                ),
+            ],
+            className='row',
+        ),
+    ],
+)
 
 
 ######################################### INTERACTION CALLBACKS ########################################################
@@ -470,10 +579,10 @@ def update_download_message(selected_station, download_start_year, download_end_
      Output(component_id='filename-store', component_property='data'),
      Output(component_id='station-metadata-store', component_property='data'),
      Output(component_id='task-status', component_property='children'),
-     Output(component_id='task-interval', component_property='interval'),
+     Output(component_id='task-refresh-interval', component_property='interval'),
      Output(component_id='toggle-button-vis', component_property='style'),
      Output(component_id='spinner', component_property='style'),
-     Output(component_id='column-name-store', component_property='data'),
+     Output(component_id='variable-name-store', component_property='data'),
      Output(component_id='spinner-label', component_property='children')],
     [Input(component_id='selected-station', component_property='data'),
      Input(component_id='download-year-start', component_property='value'),
@@ -483,7 +592,7 @@ def update_download_message(selected_station, download_start_year, download_end_
      Input(component_id='download-frequency', component_property='value'),
      Input(component_id='generate-data-button', component_property='n_clicks'),
      Input(component_id='message-status', component_property='children'),
-     Input(component_id='task-interval', component_property='n_intervals')],
+     Input(component_id='task-refresh-interval', component_property='n_intervals')],
     [State(component_id='task-status', component_property='children'),
      State(component_id='task-id', component_property='children')]
 )
@@ -535,12 +644,13 @@ def background_download_task(selected_station, download_start_year, download_end
         loading_div_viz = {'display': 'none'}
         task_result = AsyncResult(id=task_id_state, app=celery_app).result
         task_result.pop('current_percent_complete', None)  # remove percent complete key
-        forget = AsyncResult(id=task_id_state, app=celery_app).forget()
+        AsyncResult(id=task_id_state, app=celery_app).forget()
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, interval, button_visibility, loading_div_viz, task_result, dash.no_update
 
     elif task_status_state == 'FAILURE':
         current_task_progress = 'Download Failed. Please Try Again.'
+        AsyncResult(id=task_id_state, app=celery_app).forget()
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
     elif message_status:
