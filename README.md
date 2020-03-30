@@ -29,24 +29,40 @@ pre-signed URL
 
 ### Screenshots
 
-![](assets/demo.gif)
+![](assets/demo_01.png)
+
+![](assets/demo_02.png)
+
 ### What do the files do
 
 [app.py](https://github.com/david-hurley/env-can-wx-app/blob/master/app.py)
 
+This initializes the Plotly Dash app. It is called on by index.py 
+
 [index.py](https://github.com/david-hurley/env-can-wx-app/blob/master/app.py)
+
+This is where the app is referenced to the server. Data from different pages that persists in 
+memory or session storage is referenced here. This sets the path to different pages. 
 
 [tasks.py](https://github.com/david-hurley/env-can-wx-app/blob/master/tasks.py)
 
+This connects the "Generate Data" request to Celery and Redis backend to download data. 
+The results of the download are sent to AWS S3 bucket. 
+
 [Procfile](https://github.com/david-hurley/env-can-wx-app/blob/master/Procfile)
 
-File defining commands to be run by Heroku web and worker dynos.
+File defining commands to be run by Heroku web and worker dynos. This tells Gunicorn to run
+the web server. 
 
 [home_page.py](https://github.com/david-hurley/env-can-wx-app/blob/master/pages/home_page.py)
 
+Contains all of the application layout and callbacks for the Home Page. 
+This includes the HTML and CSS and React.js callbacks.
+
 [graph_page.py](https://github.com/david-hurley/env-can-wx-app/blob/master/pages/graph_page.py)
 
-
+Contains all of the application layout and callbacks for the Graph Page. This is where 
+the generated data is visualized. The figures can are interactive and can be saved as an image. 
 
 [about.py](https://github.com/david-hurley/env-can-wx-app/blob/master/pages/about.py)
 
@@ -54,4 +70,8 @@ The What, Why, Who, and Where of Weather History Canada.
 
 [chriddyp.css](https://github.com/david-hurley/env-can-wx-app/blob/master/assets/chriddyp.css)
 
-Defualt Plotly Dash CSS styleguide
+Defualt Plotly Dash CSS styleguide. 
+
+[style.css](https://github.com/david-hurley/env-can-wx-app/blob/master/assets/style.css)
+
+This is extra styling for the app. 

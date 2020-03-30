@@ -19,7 +19,7 @@ def display_page(pathname):
     if pathname == '/pages/graph_page':
         return graph_page.app_layout
     elif pathname == '/pages/about':
-        return about.layout
+        return about.app_layout
     else:
         return home_page.app_layout
 
