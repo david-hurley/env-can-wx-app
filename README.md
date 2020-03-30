@@ -27,7 +27,9 @@ pre-signed URL
 - Multi-browser functionality. Manually tested on Chrome 78, IE11, Firefox 68, and Safari 
 10.1
 
+### Screenshots
 
+![](assets/demo.gif)
 ### What do the files do
 
 [app.py](https://github.com/david-hurley/env-can-wx-app/blob/master/app.py)
