@@ -36,14 +36,13 @@ app_layout = html.Div([
 
             html.H4("Who is Weather History Canada for?", style={'font-weight': 'bold'}),
             html.Label('Weather History Canada is for anyone looking to download and visualize historical weather data '
-                       'from ECCC FAST! Whether you are an academic, industry professional, or outdoor enthusiast this site '
-                       'will allow you to begin making decisions with regards to historical weather data without the previous overhead.'),
+                       'from ECCC FAST! This site will allow you to begin making decisions with regards to historical weather data without the previous overhead!'),
 
             html.H4("Where did Weather History Canada come from?", style={'font-weight': 'bold'}),
             html.Label('Weather History Canada was born out of a desire to make the process of searching for, downloading, and visualizing '
                        'historical Canadian weather data faster and easier. As someone with a background in meteorology and experience in the environmental '
-                       'consulting services, I know how important it is to have quick access to historical weather data when making operational '
-                       'decisions. However, I often found myself and co-workers spending multiple hours downloading weather station data from the ECCC '
+                       'consulting services, I know how important it is to have quick access to historical weather data. '
+                       'However, I often found myself and co-workers spending multiple hours downloading weather station data from the ECCC '
                        'portal, combining the datasets, and visualizing the data only to realize at the end that we needed something different and had to '
                        'start over. Eventually, I became frustrated with the current system and as it goes "necessity is the mother of invention" so Weather '
                        'History Canada was born.'),

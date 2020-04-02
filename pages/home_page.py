@@ -491,19 +491,19 @@ def update_download_dropdowns(selected_station, selected_station_row, selected_f
         if selected_frequency == 'Hourly':
             download_year_start = [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Hourly)'],
                                                                      df_selected_data['Last Year (Hourly)'] + 1, 1)]
-            download_year_end = download_year_start # same year range for downloads
+            download_year_end = download_year_start  # same year range for downloads
         elif selected_frequency == 'Daily':
             download_year_start = [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Daily)'],
                                                                      df_selected_data['Last Year (Daily)'] + 1, 1)]
-            download_year_end = download_year_start # same year range for downloads
+            download_year_end = download_year_start  # same year range for downloads
         elif selected_frequency == 'Monthly':
             download_year_start = [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Monthly)'],
                                                                      df_selected_data['Last Year (Monthly)'] + 1, 1)]
-            download_year_end = download_year_start # same year range for downloads
+            download_year_end = download_year_start  # same year range for downloads
         else:
             download_year_start = [{'label': year, 'value': year} for year in range(df_selected_data['First Year'],
                                                                      df_selected_data['Last Year'] + 1, 1)]
-            download_year_end = download_year_start # same year range for downloads
+            download_year_end = download_year_start  # same year range for downloads
 
     else:
         no_station_selected = [{'label': year, 'value': year} for year in ['Select A Station']]
@@ -626,8 +626,9 @@ def background_download_task(selected_station, download_start_year, download_end
         current_task_progress = 'Download Progress: Pending...'
         interval = 250  # set refresh interval short and to update task status
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
+        button_visibility = {'display': 'none'}
 
-        return link_path, task_id, filename, station_metadata, current_task_status, interval, dash.no_update, loading_div_viz, dash.no_update, current_task_progress
+        return link_path, task_id, filename, station_metadata, current_task_status, interval, button_visibility, loading_div_viz, dash.no_update, current_task_progress
 
     elif task_status_state == 'PENDING':
         task = AsyncResult(id=task_id_state, app=celery_app)
