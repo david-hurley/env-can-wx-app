@@ -14,7 +14,7 @@ celery_app.conf.update(
     },
     broker_pool_limit=None)
 
-@celery_app.task(bind=True, soft_time_limit=1200)
+@celery_app.task(bind=True, time_limit=1200)
 def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency, url_raw):
 
     # create download dates and urls based on user selected download frequency

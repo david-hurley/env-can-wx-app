@@ -458,8 +458,7 @@ def data_filter(province, frequency, first_year, end_year, lat, lon, radius, sta
         table_data = []
         selected_row = []
 
-    return station_map(df_filter, selected_lat, selected_lon, selected_station_name, 'blue'), table_data, selected_row, \
-           None, None, None, None, None
+    return station_map(df_filter, selected_lat, selected_lon, selected_station_name, 'blue'), table_data, selected_row, None, None, None, None, None
 
 # download options based on selected station callback
 @app.callback(
@@ -604,56 +603,74 @@ def background_download_task(selected_station, download_start_year, download_end
     ctx = dash.callback_context
 
     # If the user has set the download timeframe, frequency, and no current task is running then launch celery
-    if selected_station and download_start_year and download_start_month and download_end_year and download_end_month and download_frequency and \
-        ctx.triggered[0]['prop_id'] == 'generate-data-button.n_clicks' and generate_button_click and message_status and not task_status_state:
+    if ctx.triggered[0]['prop_id'] == 'generate-data-button.n_clicks' and generate_button_click and message_status == 'PROCEED' and task_status_state is None:
 
+        # create data frame of selected station metadata
         df_selected_data = pd.DataFrame(selected_station)
+        station_metadata = {k: v for v, k in enumerate([df_selected_data.Latitude[0], df_selected_data.Longitude[0], df_selected_data.Name[0], df_selected_data['Climate ID'][0]])}
 
+        # create file link for S3 download following background task
         filename = 'ENV-CAN' + '-' + download_frequency + '-' + 'Station' + str(df_selected_data['Station ID'][0]) + '-' + str(download_start_year) + '-' + str(download_end_year) + '.csv'
         relative_filename = os.path.join('download', filename)
         link_path = '/{}'.format(relative_filename)
 
+        # start background task in Celery and Redis
         download_task = tasks.download_remote_data.apply_async([int(df_selected_data['Station ID'][0]), int(download_start_year),
                                                                    int(download_start_month), int(download_end_year), int(download_end_month), download_frequency,
                                                                    bulk_data_pathname])
+
         # task id of current celery task
         task_id = download_task.id
         time.sleep(0.5)  # Need a short sleep for task_id to catch up
-        station_metadata = {k: v for v, k in enumerate([df_selected_data.Latitude[0], df_selected_data.Longitude[0], df_selected_data.Name[0], df_selected_data['Climate ID'][0]])}
         current_task_status = AsyncResult(id=task_id, app=celery_app).state
-        current_task_progress = 'Download Progress: 0.0%'
+        current_task_progress = 'Download Progress: Pending...'
         interval = 250  # set refresh interval short and to update task status
-        button_visibility = {'display': 'none'}
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
-        task_result = {}
 
-        return link_path, task_id, filename, station_metadata, current_task_status, interval, button_visibility, loading_div_viz, task_result, current_task_progress
+        return link_path, task_id, filename, station_metadata, current_task_status, interval, dash.no_update, loading_div_viz, dash.no_update, current_task_progress
+
+    elif task_status_state == 'PENDING':
+        task = AsyncResult(id=task_id_state, app=celery_app)
+        current_task_status = task.state
+        current_task_progress = 'Download Progress: Pending...'
+
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
+
     elif task_status_state == 'PROGRESS':
-        # while task is running continue to update task status
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
         current_task_progress = 'Download Progress: {}%'.format(task.info.get('current_percent_complete', 0))
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
-    # once task is succesful remove task status, output results, and forget celery task
     elif task_status_state == 'SUCCESS':
-        current_task_status = None
-        interval = 24*60*60*1*1000
-        button_visibility = {'display': 'block'}
-        loading_div_viz = {'display': 'none'}
-        task_result = AsyncResult(id=task_id_state, app=celery_app).result
-        task_result.pop('current_percent_complete', None)  # remove percent complete key
-        AsyncResult(id=task_id_state, app=celery_app).forget()
+        task = AsyncResult(id=task_id_state, app=celery_app)
+        current_task_status = task.state
+        interval = 250
+        loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
+        button_visibility = {'display': 'none'}
+        task_result = {}
+
+        if 'current_percent_complete' in task.info:
+            current_task_status = None
+            interval = 24*60*60*1*1000
+            loading_div_viz = {'display': 'none'}
+            button_visibility = {'display': 'block'}
+            task_result = task.result
+            task_result.pop('current_percent_complete', None)  # remove percent complete key
+            task.forget()
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, interval, button_visibility, loading_div_viz, task_result, dash.no_update
 
     elif task_status_state == 'FAILURE':
+        task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_progress = 'Download Failed. Please Try Again.'
-        AsyncResult(id=task_id_state, app=celery_app).forget()
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
+        interval = 24 * 60 * 60 * 1 * 1000
+        task.forget()
 
-    elif message_status:
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, interval, dash.no_update, dash.no_update, dash.no_update, current_task_progress
+
+    elif message_status is None:
         button_visibility = {'display': 'none'}
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, button_visibility, dash.no_update, dash.no_update, dash.no_update
