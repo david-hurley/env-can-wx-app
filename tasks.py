@@ -6,13 +6,17 @@ import numpy as np
 
 celery_app = celery.Celery('download')
 celery_app.conf.update(
-    broker_url=os.environ['REDIS_URL'],
+    # settings for message broker
+    broker_url=os.environ['CLOUDAMQP_URL'],
+    broker_pool_limit=1,
+    broker_heartbeat=None,
+    broker_connection_timeout=30,
+    event_queue_expires=60,
+    worker_prefetch_multiplier=1,
+    worker_concurrency=16,
     result_backend=os.environ['REDIS_URL'],
-    redis_max_connections=4,
-    broker_transport_options={
-        'max_connections': 2
-    },
-    broker_pool_limit=None)
+    redis_max_connections=20
+)
 
 @celery_app.task(bind=True, time_limit=1200)
 def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency, url_raw):
