@@ -1,8 +1,69 @@
 import celery
 import pandas as pd
 import os
-import s3fs
+import boto3
 import numpy as np
+
+from io import StringIO
+
+######################################### HELPER FUNCTIONS #############################################################
+
+#  function to query column names of s3 file
+def query_header_name_s3(s3, filename):
+
+    resp = s3.select_object_content(
+        Bucket=os.environ['S3_BUCKET'],
+        Key=filename,
+        ExpressionType='SQL',
+        Expression='SELECT * FROM s3object s LIMIT 1',
+        InputSerialization={'CSV': {"FileHeaderInfo": "None"}},
+        OutputSerialization={'CSV': {}},
+    )
+
+    records = []
+    for event in resp['Payload']:
+        if 'Records' in event:
+            records.append(event['Records']['Payload'])
+
+    file_str = ''.join(req.decode('utf-8') for req in records)
+
+    headers = pd.read_csv(StringIO(file_str), index_col=0).columns
+
+    return headers
+
+#  function to query data from s3 file
+def query_data_s3(s3, filename, sql_stmt, col_names):
+
+    resp = s3.select_object_content(
+        Bucket=os.environ['S3_BUCKET'],
+        Key=filename,
+        ExpressionType='SQL',
+        Expression=sql_stmt,
+        InputSerialization={'CSV': {"FileHeaderInfo": "Use"}},
+        OutputSerialization={'CSV': {}},
+    )
+
+    records = []
+    for event in resp['Payload']:
+        if 'Records' in event:
+            records.append(event['Records']['Payload'])
+
+    file_str = ''.join(req.decode('utf-8') for req in records)
+
+    df = pd.read_csv(StringIO(file_str), index_col=None, dtype={'Weather': 'str'}, names=list(col_names))
+
+    return df
+
+#  function to upload file to s3
+def upload_csv_S3(df, filename):
+
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer)
+    s3_resource = boto3.resource('s3')
+    obj = s3_resource.Object(os.environ['S3_BUCKET'], 'tmp/' + filename)
+    obj.put(Body=csv_buffer.getvalue())
+
+######################################### CELERY TASK ##################################################################
 
 celery_app = celery.Celery('download')
 celery_app.conf.update(
@@ -19,58 +80,47 @@ celery_app.conf.update(
 )
 
 @celery_app.task(bind=True, time_limit=1200)
-def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency, url_raw):
+def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency):
 
-    # create download dates and urls based on user selected download frequency
+    #  setup s3 client
+    s3 = boto3.client('s3', region_name='us-east-1', aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+                      aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
+
+    #  user requested download dates
+    start_date = pd.to_datetime('-'.join([start_year, start_month]))
+    end_date = pd.to_datetime('-'.join([end_year, end_month]))
+
+    #  format sql statement
+    sql_stmt = "SELECT * FROM s3object s WHERE s.\"Date/Time\" BETWEEN '{}' AND '{}'".format(start_date, end_date)
+
     if frequency == 'Hourly':
-        download_dates = pd.date_range(start=str(start_year) + '/' + str(start_month),
-                                       end=str(end_year) + '/' + str(end_month), freq='M')
-        urls = [url_raw.format(station_id, date.year, date.month, 1) for date in download_dates]
 
-    elif frequency == 'Daily' and start_year == end_year:
-        urls = [url_raw.format(station_id, start_year, start_month, 2)]
+        filename = '_'.join([station_id, 'hourly.csv'])
+        file_headers = query_header_name_s3(s3, filename)
+        df = query_data_s3(s3, filename, sql_stmt, file_headers)
 
-    elif frequency == 'Daily' and start_year < end_year:
-        download_dates = pd.date_range(start=str(start_year) + '/' + str(start_month),
-                                       end=str(end_year + 1) + '/' + str(end_month), freq='Y')
-        urls = [url_raw.format(station_id, date.year, date.month, 2) for date in download_dates]
+    elif frequency == 'Daily':
+
+        filename = '_'.join([station_id, 'daily.csv'])
+        file_headers = query_header_name_s3(s3, filename)
+        df = query_data_s3(s3, filename, sql_stmt, file_headers)
+
     else:
-        urls = [url_raw.format(station_id, start_year, start_month, 3)]
 
-    # download csv data to dataframe from environment canada page
-    data_temp = []
-    for i, url in enumerate(urls):
-        percent_complete = str(round((i / len(urls)) * 100, 0))
-        self.update_state(state='PROGRESS', meta={'current_percent_complete': percent_complete})
-        data_temp.append(pd.read_csv(url))
-    data = pd.concat(data_temp)
+        filename = '_'.join([station_id, 'monthly.csv'])
+        file_headers = query_header_name_s3(s3, filename)
+        df = query_data_s3(s3, filename, sql_stmt, file_headers)
 
-    # we want the download data to match the user request so filter the data on download dates
-    if frequency == 'Daily' and start_year < end_year:
-        data = data[(pd.to_datetime(data['Date/Time']) >= pd.to_datetime(str(start_year) + '-' + str(start_month) + '-01'))
-                    & (pd.to_datetime(data['Date/Time']) <= pd.to_datetime(str(end_year) + '-' + str(end_month) + '-01') - pd.DateOffset(1))]
-    elif frequency == 'Monthly':
-        data = data[(pd.to_datetime(data['Date/Time']) >= pd.to_datetime(str(start_year) + '-' + str(start_month)))
-                    & (pd.to_datetime(data['Date/Time']) <= pd.to_datetime(str(end_year) + '-' + str(end_month)) - pd.DateOffset(1))]
-
-    # create filename of download file
-    filename = 'ENV-CAN' + '-' + frequency + '-' + 'Station' + str(station_id) + '-' + str(start_year) + '-' + str(end_year) + '.csv'
-
-    # send data to S3 for user to download
-    s3 = s3fs.S3FileSystem(anon=False,
-                           key=os.environ['AWS_ACCESS_KEY_ID'],
-                           secret=os.environ['AWS_SECRET_ACCESS_KEY'])
-    with s3.open(os.environ['S3_BUCKET']+'/'+filename, 'w') as f:
-        data.to_csv(f)
+    #  send csv to s3
+    upload_csv_S3(df, filename)
 
     # keep only relevant columns and store to plot in graphing and make flagged values NaN so plotting looks good
-    data_filt = data[[x for x in data if not x.endswith('Flag')]]
+    df_filt = df[[x for x in df if not x.endswith('Flag')]]
     cols_to_keep = ('Date/Time', 'Temp', 'Wind', 'Mean', 'Total', 'Snow')
-    data_filt = data_filt[[x for x in data_filt if x.startswith(cols_to_keep)]]
+    df_filt = df_filt[[x for x in df_filt if x.startswith(cols_to_keep)]]
     vals_to_remove = ['B', 'E', 'M', 'S', 'T', 'A', 'C', 'F', 'L', 'N', 'Y']
-    data_filt = data_filt.replace(vals_to_remove, np.nan)
-    data_filt = data_filt.dropna(how='all', axis=1)
-    data_filt_col_names = {c: i for i, c in enumerate(data_filt.columns)}
-    data_filt_col_names['current_percent_complete'] = '100'  # include final percent complete
+    df_filt = df_filt.replace(vals_to_remove, np.nan)
+    df_filt = df_filt.dropna(how='all', axis=1)
+    df_filt_col_names = {c: i for i, c in enumerate(df_filt.columns)}
 
-    return data_filt_col_names
+    return df_filt_col_names

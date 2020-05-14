@@ -17,40 +17,11 @@ from tasks import celery_app
 from dash.dependencies import Input, Output, State
 from app import app
 
-######################################### DATA INPUTS AND LINKS ########################################################
-
-#  create dataframe of weather station locations and available years of data
-df = pd.read_csv('station-metadata-processed.csv')
-df.replace(np.nan, 'N/A', inplace=True)
-
-#  weather station dataframe stops at 2019, if data was available
-#  in 2019 we assume it's available in the current year
-today = datetime.today()
-yearnow = today.year
-df['Last Year'].loc[df['Last Year'] == 2019] = yearnow
-df['Last Year (Hourly)'].loc[df['Last Year (Hourly)'] == 2019] = yearnow
-df['Last Year (Daily)'].loc[df['Last Year (Daily)'] == 2019] = yearnow
-df['Last Year (Monthly)'].loc[df['Last Year (Monthly)'] == 2019] = yearnow
-
-#  url path to bulk download weather data from environment canada
-bulk_data_pathname = 'https://climate.weather.gc.ca/climate_data/bulk_data_e.html?' \
-                     'format=csv&stationID={}&Year={}&Month={}&Day=1&timeframe={}'
-
-#  preload loading spinner to base64 encode
-spinner = base64.b64encode(open(os.path.join('assets', 'spinner.gif'), 'rb').read())
-
 ######################################### HELPER FUNCTIONS #############################################################
+
 
 #  this function computes the distance between two locations on the earths surface
 def compute_great_circle_distance(lat_user, lon_user, lat_station, lon_station):
-    """
-    Calculate the distance from a station to a specified location
-    :param lat_user: user specified latitude
-    :param lon_user: user specified longitude
-    :param lat_station: latitude of all stations
-    :param lon_station: longitude of all stations
-    :return: radial distance from user defined coordinates to all stations
-    """
 
     lat1, lon1 = np.radians([np.float64(lat_user), np.float64(lon_user)])
     lat2, lon2 = np.radians([lat_station, lon_station])
@@ -60,6 +31,33 @@ def compute_great_circle_distance(lat_user, lon_user, lat_station, lon_station):
 
     return earth_radius_km * 2 * np.arcsin(np.sqrt(a))
 
+#  this function downloads a file from s3
+def download_csv_s3(s3, filepath, bucket):
+
+    obj = s3.get_object(Bucket=bucket, Key=filepath)
+    df = pd.read_csv(obj['Body'], index_col=None)
+
+    return df
+
+######################################### DATA INPUTS AND LINKS ########################################################
+
+#  setup s3 client
+s3 = boto3.client('s3', region_name='us-east-1', aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+                  aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
+
+#  create dataframe of weather station locations and available years of data
+df = download_csv_s3(s3, 'env-can-wx-station-metadata.csv', os.environ['S3_BUCKET'])
+
+#  convert times to datetime format
+df[['first_year_hly', 'last_year_hly', 'first_year_dly', 'last_year_dly', 'first_year_mly', 'last_year_mly']] = \
+df[['first_year_hly', 'last_year_hly', 'first_year_dly', 'last_year_dly', 'first_year_mly', 'last_year_mly']].apply(pd.to_datetime, errors='coerce')
+
+#  rename columns
+df.columns = ['station_id', 'climate_id', 'province', 'station_name', 'latitude', 'longitude', 'elevation',
+              'first_hourly_data', 'last_hourly_data', 'first_daily_data', 'last_daily_data', 'first_monthly_data', 'last_monthly_data']
+
+#  preload loading spinner to base64 encode
+spinner = base64.b64encode(open(os.path.join('assets', 'spinner.gif'), 'rb').read())
 
 ######################################### PLOTS ########################################################################
 
@@ -68,10 +66,10 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
     return {'data': [
         # weather station locations
         {'type': 'scattermapbox',
-         'lat': stations.Latitude,
-         'lon': stations.Longitude,
+         'lat': stations.latitude,
+         'lon': stations.longitude,
          'name': '',
-         'text': stations.Name,
+         'text': stations.station_name,
          'marker': {'color': color}
          },
         # highlight selected weather station in red
@@ -189,7 +187,7 @@ app_layout = html.Div(
                                     [
                                         dcc.Dropdown(
                                             id='province',
-                                            options=[{'label': province, 'value': province} for province in df.Province.unique()],
+                                            options=[{'label': province, 'value': province} for province in df.province.unique()],
                                             style={'width': '90%'}),
                                     ], className='flex_container_row',
                                 ),
@@ -396,59 +394,66 @@ app_layout = html.Div(
      Input(component_id='station-name', component_property='value'),
      Input(component_id='station-map', component_property='clickData')]
 )
-def data_filter(province, frequency, first_year, end_year, lat, lon, radius, station_name, on_map_click):
+def data_filter(prov, frequency, first_year, end_year, lat, lon, radius, stn_name, on_map_click):
     # don't use global variable to filter weather station data on map
-    df_filter = df
+    df_filter = df.copy()
 
     # filter to limit mapped data by province
-    if province:
-        df_filter = df_filter[df_filter.Province == province]
+    if prov:
+        df_filter = df_filter[df_filter.province == prov]
     else:
         df_filter = df_filter
 
     # filter to limit mapped data by data frequency
     if frequency == 'Hourly':
-        df_filter = df_filter[df_filter['First Year (Hourly)'] != 'N/A']
+        df_filter.dropna(subset=['first_hourly_data'], inplace=True)
     elif frequency == 'Daily':
-        df_filter = df_filter[df_filter['First Year (Daily)'] != 'N/A']
+        df_filter.dropna(subset=['first_daily_data'], inplace=True)
     elif frequency == 'Monthly':
-        df_filter = df_filter[df_filter['First Year (Monthly)'] != 'N/A']
+        df_filter.dropna(subset=['first_monthly_data'], inplace=True)
     else:
         df_filter = df_filter
 
     # filter to limit mapped data between specified dates
     if first_year and end_year and frequency == 'Hourly':
-        df_filter = df_filter[(df_filter['First Year (Hourly)'] <= np.int64(end_year)) & (df_filter['Last Year (Hourly)']>= np.int64(first_year))]
+        df_filter = df_filter[(df_filter.first_hourly_data <= end_year) & (df_filter.last_hourly_data >= first_year)]
     elif first_year and end_year and frequency == 'Daily':
-        df_filter = df_filter[(df_filter['First Year (Daily)'] <= np.int64(end_year)) & (df_filter['Last Year (Daily)'] >= np.int64(first_year))]
+        df_filter = df_filter[(df_filter.first_daily_data <= end_year) & (df_filter.last_daily_data >= first_year)]
     elif first_year and end_year and frequency == 'Monthly':
-        df_filter = df_filter[(df_filter['First Year (Monthly)'] <= np.int64(end_year)) & (df_filter['Last Year (Monthly)'] >= np.int64(first_year))]
+        df_filter = df_filter[(df_filter.first_monthly_data <= end_year) & (df_filter.last_monthly_data >= first_year)]
     elif first_year and end_year:
-        df_filter = df_filter[(df_filter['First Year'] <= np.int64(end_year)) & (df_filter['Last Year'] >= np.int64(first_year))]
+        first_data_record = df_filter[['first_hourly_data', 'first_daily_data', 'first_monthly_data']].min(axis=1)
+        last_data_record = df_filter[['last_hourly_data', 'last_daily_data', 'last_monthly_data']].max(axis=1)
+        df_filter = df_filter[(first_data_record <= end_year) & (last_data_record >= first_year)]
     else:
         df_filter = df_filter
 
     # filter to limit mapped data by radius from a specified point
     if lat and lon and radius:
         df_filter = df_filter[
-            compute_great_circle_distance(lat, lon, df_filter.Latitude, df_filter.Longitude) <= np.float64(radius)]
+            compute_great_circle_distance(lat, lon, df_filter.latitude, df_filter.longitude) <= np.float64(radius)]
     else:
         df_filter = df_filter
 
     # filter to limit mapped data by search name
-    if station_name:
-        df_filter = df_filter[df_filter.Name.str.contains(station_name.upper())]
+    if stn_name:
+        df_filter = df_filter[df_filter.station_name.str.contains(stn_name.upper())]
     else:
         df_filter = df_filter
 
     # highlight selected station and populate selected station data to a table
-    if on_map_click and not df_filter[(df_filter.Latitude == on_map_click['points'][0]['lat']) &
-                                             (df_filter.Longitude == on_map_click['points'][0]['lon'])].empty:
+    if on_map_click and not df_filter[(df_filter.latitude == on_map_click['points'][0]['lat']) &
+                                             (df_filter.longitude == on_map_click['points'][0]['lon'])].empty:
         selected_lat = on_map_click['points'][0]['lat']
         selected_lon = on_map_click['points'][0]['lon']
         selected_station_name = on_map_click['points'][0]['text']
-        table_data = df_filter[(df_filter.Latitude == on_map_click['points'][0]['lat']) &
-                               (df_filter.Longitude == on_map_click['points'][0]['lon'])].to_dict('records')
+
+        df_table = df_filter.copy()
+        df_table[['first_hourly_data', 'last_hourly_data', 'first_daily_data', 'last_daily_data', 'first_monthly_data', 'last_monthly_data']] = \
+            df_table[['first_hourly_data', 'last_hourly_data', 'first_daily_data', 'last_daily_data', 'first_monthly_data', 'last_monthly_data']].apply(lambda x: x.dt.date)
+
+        table_data = df_table[(df_table.latitude == on_map_click['points'][0]['lat']) &
+                               (df_table.longitude == on_map_click['points'][0]['lon'])].to_dict('records')
         selected_row = []
 
     else:
@@ -475,34 +480,35 @@ def update_download_dropdowns(selected_station, selected_station_row, selected_f
 
     if selected_station and selected_station_row:
 
-        # attributes of selected station
+        #  attributes of selected station
         df_selected_data = pd.DataFrame(selected_station).iloc[selected_station_row[0]]
 
-        # populate dropdown tab with available frequency of data to download
-        available_frequency = df_selected_data[['First Year (Hourly)', 'First Year (Daily)', 'First Year (Monthly)']] \
-            .replace('N/A', np.nan).dropna().index.to_list()
-        download_frequency = [{'label': freq.split('(')[1][:-1], 'value': freq.split('(')[1][:-1]} for freq in available_frequency]
+        #  populate dropdown tab with available frequency of data to download
+        available_frequency = df_selected_data[['first_hourly_data', 'first_daily_data', 'first_monthly_data']].dropna().index.to_list()
+        download_frequency = [{'label': freq.split('_')[1].capitalize(), 'value': freq.split('_')[1].capitalize()} for freq in available_frequency]
 
-        # populate dropdown tab with available months of data to download
+        #  populate dropdown tab with available months of data to download
         download_month_start = [{'label': year, 'value': year} for year in range(1, 13, 1)]
-        download_month_end = download_month_start # same month range for downloads
+        download_month_end = download_month_start  # same month range for downloads
 
-        # populate dropdown tab with available years of data to download corresponding to map filter data frequency
+        #  populate dropdown tab with available years of data to download corresponding to map filter data frequency
         if selected_frequency == 'Hourly':
-            download_year_start = [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Hourly)'],
-                                                                     df_selected_data['Last Year (Hourly)'] + 1, 1)]
+            download_year_start = [{'label': year, 'value': year} for year in
+                                   set(pd.date_range(df_selected_data.first_hourly_data, df_selected_data.last_hourly_data, freq='MS').year)]
             download_year_end = download_year_start  # same year range for downloads
         elif selected_frequency == 'Daily':
-            download_year_start = [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Daily)'],
-                                                                     df_selected_data['Last Year (Daily)'] + 1, 1)]
+            download_year_start = [{'label': year, 'value': year} for year in
+                                   set(pd.date_range(df_selected_data.first_daily_data, df_selected_data.last_daily_data, freq='MS').year)]
             download_year_end = download_year_start  # same year range for downloads
         elif selected_frequency == 'Monthly':
-            download_year_start = [{'label': year, 'value': year} for year in range(df_selected_data['First Year (Monthly)'],
-                                                                     df_selected_data['Last Year (Monthly)'] + 1, 1)]
+            download_year_start = [{'label': year, 'value': year} for year in
+                                   set(pd.date_range(df_selected_data.first_monthly_data, df_selected_data.last_monthly_data, freq='MS').year)]
             download_year_end = download_year_start  # same year range for downloads
         else:
-            download_year_start = [{'label': year, 'value': year} for year in range(df_selected_data['First Year'],
-                                                                     df_selected_data['Last Year'] + 1, 1)]
+            first_data_record = pd.to_datetime(df_selected_data[['first_hourly_data', 'first_daily_data', 'first_monthly_data']]).min().year
+            last_data_record = pd.to_datetime(df_selected_data[['last_hourly_data', 'last_daily_data', 'last_monthly_data']]).max().year
+            download_year_start = [{'label': year, 'value': year} for year in
+                                   set(pd.date_range(str(first_data_record), str(last_data_record), freq='MS').year)]
             download_year_end = download_year_start  # same year range for downloads
 
     else:
@@ -561,7 +567,7 @@ def update_download_message(selected_station, download_start_year, download_end_
             end_date = datetime.strptime(str(download_end_year) + str(download_end_month) + '1', '%Y%m%d').date() - timedelta(1)
             message = 'First select GENERATE DATA and once loading is complete select DOWNLOAD DATA to begin downloading {} ' \
                       'data from {} to {} for station {} (station ID {})' \
-                    .format(download_frequency, start_date, end_date, df_selected_data.Name[0], df_selected_data['Station ID'][0])
+                    .format(download_frequency, start_date, end_date, df_selected_data.station_name[0], df_selected_data.station_id[0])
             message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem', 'border': '2px red dashed'}
             message_status = 'PROCEED'
     else:
@@ -607,17 +613,22 @@ def background_download_task(selected_station, download_start_year, download_end
 
         # create data frame of selected station metadata
         df_selected_data = pd.DataFrame(selected_station)
-        station_metadata = {k: v for v, k in enumerate([df_selected_data.Latitude[0], df_selected_data.Longitude[0], df_selected_data.Name[0], df_selected_data['Climate ID'][0]])}
+        station_metadata = {k: v for v, k in enumerate([df_selected_data.latitude[0], df_selected_data.longitude[0], df_selected_data.station_name[0], df_selected_data.climate_id[0]])}
 
         # create file link for S3 download following background task
-        filename = 'ENV-CAN' + '-' + download_frequency + '-' + 'Station' + str(df_selected_data['Station ID'][0]) + '-' + str(download_start_year) + '-' + str(download_end_year) + '.csv'
+        if download_frequency == 'Hourly':
+            filename = '_'.join([str(df_selected_data.station_id[0]), 'hourly.csv'])
+        elif download_frequency == 'Daily':
+            filename = '_'.join([str(df_selected_data.station_id[0]), 'daily.csv'])
+        elif download_frequency == 'Monthly':
+            filename = '_'.join([str(df_selected_data.station_id[0]), 'monthly.csv'])
+
         relative_filename = os.path.join('download', filename)
         link_path = '/{}'.format(relative_filename)
 
         # start background task in Celery and Redis
-        download_task = tasks.download_remote_data.apply_async([int(df_selected_data['Station ID'][0]), int(download_start_year),
-                                                                   int(download_start_month), int(download_end_year), int(download_end_month), download_frequency,
-                                                                   bulk_data_pathname])
+        download_task = tasks.download_remote_data.apply_async([str(df_selected_data.station_id[0]), str(download_start_year),
+                                                                   str(download_start_month), str(download_end_year), str(download_end_month), download_frequency])
 
         # task id of current celery task
         task_id = download_task.id
@@ -640,7 +651,7 @@ def background_download_task(selected_station, download_start_year, download_end
     elif task_status_state == 'PROGRESS':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: {}%'.format(task.info.get('current_percent_complete', 0))
+        current_task_progress = 'Download Progress: Pending...'
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
