@@ -111,6 +111,11 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
         file_headers = query_header_name_s3(s3, filename)
         df = query_data_s3(s3, filename, sql_stmt, file_headers)
 
+    #  test local save and read
+    df.to_csv('test.csv')
+    df = pd.read_csv('test.csv')
+    test = df.station_id[0]
+
     #  send csv to s3
     upload_csv_S3(df, filename)
 
@@ -122,6 +127,6 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
     df_filt = df_filt.replace(vals_to_remove, np.nan)
     df_filt = df_filt.dropna(how='all', axis=1)
     df_filt_col_names = {c: i for i, c in enumerate(df_filt.columns)}
-    df_filt_col_names['status'] = 'complete'
+    df_filt_col_names['status'] = str(test)
 
     return df_filt_col_names

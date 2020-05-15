@@ -664,14 +664,14 @@ def background_download_task(selected_station, download_start_year, download_end
         button_visibility = {'display': 'none'}
         task_result = {}
 
-        if 'status' in task.info:
-            current_task_status = None
-            interval = 24*60*60*1*1000
-            loading_div_viz = {'display': 'none'}
-            button_visibility = {'display': 'block'}
-            task_result = task.result
-            task_result.pop('status', None)  # remove percent complete key
-            task.forget()
+        # if 'status' in task.info:
+        #     current_task_status = None
+        #     interval = 24*60*60*1*1000
+        #     loading_div_viz = {'display': 'none'}
+        #     button_visibility = {'display': 'block'}
+        #     task_result = task.result
+        #     task_result.pop('status', None)  # remove percent complete key
+        #     task.forget()
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, interval, button_visibility, loading_div_viz, task_result, current_task_progress
 
