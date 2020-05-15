@@ -75,11 +75,12 @@ celery_app.conf.update(
     event_queue_expires=60,
     worker_prefetch_multiplier=1,
     worker_concurrency=16,
+    worker_enable_remote_control=False,
     result_backend=os.environ['REDIS_URL'],
     redis_max_connections=20
 )
 
-@celery_app.task(bind=True, time_limit=1200)
+@celery_app.task(bind=True, time_limit=180)
 def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency):
 
     #  setup s3 client
