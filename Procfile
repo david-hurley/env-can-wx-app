@@ -1,2 +1,2 @@
 web: gunicorn index:app.server -k gevent --worker-connections 100 --max-requests 600 --log-file=-
-worker: celery -A tasks worker -Ofair --pool=gevent --loglevel=info
+worker: celery -A tasks worker --without-gossip --without-mingle --without-heartbeat -O fair -P gevent -l INFO
