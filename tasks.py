@@ -97,24 +97,27 @@ def download_remote_data(self, station_name, station_id, start_year, start_month
 
     if frequency == 'Hourly':
 
-        filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'hourly.csv'])
-        file_headers = query_header_name_s3(s3, filename)
-        df = query_data_s3(s3, filename, sql_stmt, file_headers)
+        input_filename = '_'.join([station_id, 'hourly.csv'])
+        output_filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'hourly.csv'])
+        file_headers = query_header_name_s3(s3, input_filename)
+        df = query_data_s3(s3, input_filename, sql_stmt, file_headers)
 
     elif frequency == 'Daily':
 
-        filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'daily.csv'])
-        file_headers = query_header_name_s3(s3, filename)
-        df = query_data_s3(s3, filename, sql_stmt, file_headers)
+        input_filename = '_'.join([station_id, 'daily.csv'])
+        output_filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'daily.csv'])
+        file_headers = query_header_name_s3(s3, input_filename)
+        df = query_data_s3(s3, input_filename, sql_stmt, file_headers)
 
     else:
 
-        filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'monthly.csv'])
-        file_headers = query_header_name_s3(s3, filename)
-        df = query_data_s3(s3, filename, sql_stmt, file_headers)
+        input_filename = '_'.join([station_id, 'monthly.csv'])
+        output_filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'monthly.csv'])
+        file_headers = query_header_name_s3(s3, input_filename)
+        df = query_data_s3(s3, input_filename, sql_stmt, file_headers)
 
     #  send csv to s3
-    upload_csv_S3(df, filename)
+    upload_csv_S3(df, output_filename)
 
     #  keep only relevant columns and store to plot in graphing and make flagged values NaN so plotting looks good
     df_filt = df[[x for x in df if not x.endswith('Flag')]]

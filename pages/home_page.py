@@ -632,12 +632,13 @@ def background_download_task(selected_station, download_start_year, download_end
         link_path = '/{}'.format(relative_filename)
 
         #  start background task in Celery and Redis
-        download_task = tasks.download_remote_data.apply_async([df_selected_data.station_name, str(df_selected_data.station_id[0]), download_start_year,
-                                                                download_start_month, download_end_year, download_end_month, download_frequency])
+        download_task = tasks.download_remote_data.apply_async([df_selected_data.station_name[0], str(df_selected_data.station_id[0]), str(download_start_year),
+                                                                str(download_start_month), str(download_end_year), str(download_end_month), download_frequency])
 
         #  task id of current celery task
         task_id = download_task.id
         time.sleep(0.5)  # Need a short sleep for task_id to catch up
+
         current_task_status = AsyncResult(id=task_id, app=celery_app).state
         current_task_progress = 'Download Progress: Starting...'
         interval = 100  # set refresh interval short and to update task status
