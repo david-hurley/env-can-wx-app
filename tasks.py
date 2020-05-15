@@ -59,6 +59,7 @@ def upload_csv_S3(df, filename):
 
     csv_buffer = StringIO()
     df.to_csv(csv_buffer)
+
     s3_resource = boto3.resource('s3')
     obj = s3_resource.Object(os.environ['S3_BUCKET'], 'tmp/' + filename)
     obj.put(Body=csv_buffer.getvalue())
@@ -75,13 +76,13 @@ celery_app.conf.update(
     event_queue_expires=60,
     worker_prefetch_multiplier=1,
     worker_concurrency=16,
-    worker_enable_remote_control=False,
+    worker_enable_remote_control=False, # need this to reduce connections
     result_backend=os.environ['REDIS_URL'],
     redis_max_connections=20
 )
 
 @celery_app.task(bind=True, time_limit=180)
-def download_remote_data(self, station_id, start_year, start_month, end_year, end_month, frequency):
+def download_remote_data(self, station_name, station_id, start_year, start_month, end_year, end_month, frequency):
 
     #  setup s3 client
     s3 = boto3.client('s3', region_name='us-east-1', aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
@@ -96,31 +97,26 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
 
     if frequency == 'Hourly':
 
-        filename = '_'.join([station_id, 'hourly.csv'])
+        filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'hourly.csv'])
         file_headers = query_header_name_s3(s3, filename)
         df = query_data_s3(s3, filename, sql_stmt, file_headers)
 
     elif frequency == 'Daily':
 
-        filename = '_'.join([station_id, 'daily.csv'])
+        filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'daily.csv'])
         file_headers = query_header_name_s3(s3, filename)
         df = query_data_s3(s3, filename, sql_stmt, file_headers)
 
     else:
 
-        filename = '_'.join([station_id, 'monthly.csv'])
+        filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'monthly.csv'])
         file_headers = query_header_name_s3(s3, filename)
         df = query_data_s3(s3, filename, sql_stmt, file_headers)
-
-    #  test local save and read
-    df.to_csv('test.csv')
-    df = pd.read_csv('test.csv')
-    test = df.station_id[0]
 
     #  send csv to s3
     upload_csv_S3(df, filename)
 
-    # keep only relevant columns and store to plot in graphing and make flagged values NaN so plotting looks good
+    #  keep only relevant columns and store to plot in graphing and make flagged values NaN so plotting looks good
     df_filt = df[[x for x in df if not x.endswith('Flag')]]
     cols_to_keep = ('Date/Time', 'Temp', 'Wind', 'Mean', 'Total', 'Snow')
     df_filt = df_filt[[x for x in df_filt if x.startswith(cols_to_keep)]]
@@ -128,6 +124,6 @@ def download_remote_data(self, station_id, start_year, start_month, end_year, en
     df_filt = df_filt.replace(vals_to_remove, np.nan)
     df_filt = df_filt.dropna(how='all', axis=1)
     df_filt_col_names = {c: i for i, c in enumerate(df_filt.columns)}
-    df_filt_col_names['status'] = str(test)
+    df_filt_col_names['status'] = 'FINISHED'
 
     return df_filt_col_names

@@ -31,6 +31,7 @@ def compute_great_circle_distance(lat_user, lon_user, lat_station, lon_station):
 
     return earth_radius_km * 2 * np.arcsin(np.sqrt(a))
 
+
 #  this function downloads a file from s3
 def download_csv_s3(s3, filepath, bucket):
 
@@ -41,6 +42,7 @@ def download_csv_s3(s3, filepath, bucket):
 
 ######################################### DATA INPUTS AND LINKS ########################################################
 
+
 #  setup s3 client
 s3 = boto3.client('s3', region_name='us-east-1', aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
                   aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
@@ -50,7 +52,7 @@ df = download_csv_s3(s3, 'env-can-wx-station-metadata.csv', os.environ['S3_BUCKE
 
 #  convert times to datetime format
 df[['first_year_hly', 'last_year_hly', 'first_year_dly', 'last_year_dly', 'first_year_mly', 'last_year_mly']] = \
-df[['first_year_hly', 'last_year_hly', 'first_year_dly', 'last_year_dly', 'first_year_mly', 'last_year_mly']].apply(pd.to_datetime, errors='coerce')
+    df[['first_year_hly', 'last_year_hly', 'first_year_dly', 'last_year_dly', 'first_year_mly', 'last_year_mly']].apply(pd.to_datetime, errors='coerce')
 
 #  rename columns
 df.columns = ['station_id', 'climate_id', 'province', 'station_name', 'latitude', 'longitude', 'elevation',
@@ -453,7 +455,7 @@ def data_filter(prov, frequency, first_year, end_year, lat, lon, radius, stn_nam
             df_table[['first_hourly_data', 'last_hourly_data', 'first_daily_data', 'last_daily_data', 'first_monthly_data', 'last_monthly_data']].apply(lambda x: x.dt.date)
 
         table_data = df_table[(df_table.latitude == on_map_click['points'][0]['lat']) &
-                               (df_table.longitude == on_map_click['points'][0]['lon'])].to_dict('records')
+                              (df_table.longitude == on_map_click['points'][0]['lon'])].to_dict('records')
         selected_row = []
 
     else:
@@ -605,79 +607,87 @@ def background_download_task(selected_station, download_start_year, download_end
                              download_end_month, download_frequency, generate_button_click, message_status,
                              n_int, task_status_state, task_id_state):
 
-    # Look for specific click event
+    #  look for specific click event
     ctx = dash.callback_context
 
-    # If the user has set the download timeframe, frequency, and no current task is running then launch celery
+    #  if the user has set the download timeframe, frequency, and no current task is running then launch celery
     if ctx.triggered[0]['prop_id'] == 'generate-data-button.n_clicks' and generate_button_click and message_status == 'PROCEED' and task_status_state is None:
 
-        # create data frame of selected station metadata
+        #  create data frame of selected station metadata
         df_selected_data = pd.DataFrame(selected_station)
-        station_metadata = {k: v for v, k in enumerate([df_selected_data.latitude[0], df_selected_data.longitude[0], df_selected_data.station_name[0], df_selected_data.climate_id[0]])}
+        station_metadata = {k: v for v, k in enumerate([df_selected_data.latitude[0], df_selected_data.longitude[0], df_selected_data.station_name[0]])}
 
-        # create file link for S3 download following background task
+        #  create filename link for S3 download following background task
         if download_frequency == 'Hourly':
-            filename = '_'.join([str(df_selected_data.station_id[0]), 'hourly.csv'])
+            filename = '_'.join([df_selected_data.station_name[0].replace(' ', '_'), str(df_selected_data.station_id[0]),
+                                 str(download_start_year), str(download_end_year), 'hourly.csv'])
         elif download_frequency == 'Daily':
-            filename = '_'.join([str(df_selected_data.station_id[0]), 'daily.csv'])
+            filename = '_'.join([df_selected_data.station_name[0].replace(' ', '_'), str(df_selected_data.station_id[0]),
+                                 str(download_start_year), str(download_end_year), 'daily.csv'])
         elif download_frequency == 'Monthly':
-            filename = '_'.join([str(df_selected_data.station_id[0]), 'monthly.csv'])
+            filename = '_'.join([df_selected_data.station_name[0].replace(' ', '_'), str(df_selected_data.station_id[0]),
+                                 str(download_start_year), str(download_end_year), 'monthly.csv'])
 
         relative_filename = os.path.join('download', filename)
         link_path = '/{}'.format(relative_filename)
 
-        # start background task in Celery and Redis
-        download_task = tasks.download_remote_data.apply_async([str(df_selected_data.station_id[0]), str(download_start_year),
-                                                                   str(download_start_month), str(download_end_year), str(download_end_month), download_frequency])
+        #  start background task in Celery and Redis
+        download_task = tasks.download_remote_data.apply_async([df_selected_data.station_name, str(df_selected_data.station_id[0]), download_start_year,
+                                                                download_start_month, download_end_year, download_end_month, download_frequency])
 
-        # task id of current celery task
+        #  task id of current celery task
         task_id = download_task.id
         time.sleep(0.5)  # Need a short sleep for task_id to catch up
         current_task_status = AsyncResult(id=task_id, app=celery_app).state
-        current_task_progress = 'Download Progress: ' + str(current_task_status)
-        interval = 250  # set refresh interval short and to update task status
+        current_task_progress = 'Download Progress: Starting...'
+        interval = 100  # set refresh interval short and to update task status
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         button_visibility = {'display': 'none'}
 
         return link_path, task_id, filename, station_metadata, current_task_status, interval, button_visibility, loading_div_viz, dash.no_update, current_task_progress
 
+    #  task will be pending if it's waiting in the queue
     elif task_status_state == 'PENDING':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: ' + str(current_task_status)
+        current_task_progress = 'Download Progress: Pending...'
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
+    #  task will be in progress if a worker has accepted it
     elif task_status_state == 'PROGRESS':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: ' + str(current_task_status)
+        current_task_progress = 'Download Progress: Downloading...'
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
+    #  task will be successful once the worker releases it. DOES NOT MEAN REDIS HAS RESULTS YET
     elif task_status_state == 'SUCCESS':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: ' + str(task.info)
-        interval = 250
+        current_task_progress = 'Download Progress: Finished!!!'
+        interval = 100
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         button_visibility = {'display': 'none'}
         task_result = {}
 
-        # if 'status' in task.info:
-        #     current_task_status = None
-        #     interval = 24*60*60*1*1000
-        #     loading_div_viz = {'display': 'none'}
-        #     button_visibility = {'display': 'block'}
-        #     task_result = task.result
-        #     task_result.pop('status', None)  # remove percent complete key
-        #     task.forget()
+        #  just because status is SUCCESS doesnt mean the results made it to redis, need to wait for redis results
+        if 'status' in task.info:
+            current_task_status = None
+            interval = 24*60*60*1*1000
+            loading_div_viz = {'display': 'none'}
+            button_visibility = {'display': 'block'}
+            task_result = task.result
+            task_result.pop('status', None)  # remove percent complete key
+            task.forget()
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, interval, button_visibility, loading_div_viz, task_result, current_task_progress
 
+    #  task will fail if celery indicates an error
     elif task_status_state == 'FAILURE':
         task = AsyncResult(id=task_id_state, app=celery_app)
-        current_task_progress = 'Download Failed. Please Try Again.'
+        current_task_progress = 'Download Failed. Please refresh page and try again.'
         interval = 24 * 60 * 60 * 1 * 1000
         task.forget()
 
@@ -691,11 +701,11 @@ def background_download_task(selected_station, download_start_year, download_end
     else:
         raise dash.exceptions.PreventUpdate
 
-# create a presigned url to download weather data from s3
+#  flask route for file download
 @app.server.route('/download/<filename>')
 def serve_static(filename):
-    s3 = boto3.client('s3', region_name='us-east-1',
-                      aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
-                      aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
+
+    #  presigned url for user to download file directly from s3, removes storage from memory
     url = s3.generate_presigned_url('get_object', Params={'Bucket': os.environ['S3_BUCKET'], 'Key': filename}, ExpiresIn=100)
+
     return redirect(url, code=302)
