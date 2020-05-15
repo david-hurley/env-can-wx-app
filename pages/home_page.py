@@ -634,7 +634,7 @@ def background_download_task(selected_station, download_start_year, download_end
         task_id = download_task.id
         time.sleep(0.5)  # Need a short sleep for task_id to catch up
         current_task_status = AsyncResult(id=task_id, app=celery_app).state
-        current_task_progress = 'Download Progress: Pending...'
+        current_task_progress = 'Download Progress: ' + str(current_task_status)
         interval = 250  # set refresh interval short and to update task status
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         button_visibility = {'display': 'none'}
@@ -644,35 +644,36 @@ def background_download_task(selected_station, download_start_year, download_end
     elif task_status_state == 'PENDING':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: Pending...'
+        current_task_progress = 'Download Progress: ' + str(current_task_status)
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
     elif task_status_state == 'PROGRESS':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: Pending...'
+        current_task_progress = 'Download Progress: ' + str(current_task_status)
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
     elif task_status_state == 'SUCCESS':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
+        current_task_progress = 'Download Progress: ' + str(task.info)
         interval = 250
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         button_visibility = {'display': 'none'}
         task_result = {}
 
-        if 'current_percent_complete' in task.info:
+        if 'status' in task.info:
             current_task_status = None
             interval = 24*60*60*1*1000
             loading_div_viz = {'display': 'none'}
             button_visibility = {'display': 'block'}
             task_result = task.result
-            task_result.pop('current_percent_complete', None)  # remove percent complete key
+            task_result.pop('status', None)  # remove percent complete key
             task.forget()
 
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, interval, button_visibility, loading_div_viz, task_result, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, interval, button_visibility, loading_div_viz, task_result, current_task_progress
 
     elif task_status_state == 'FAILURE':
         task = AsyncResult(id=task_id_state, app=celery_app)
