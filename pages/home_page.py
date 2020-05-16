@@ -674,7 +674,7 @@ def background_download_task(selected_station, download_start_year, download_end
         task_result = {}
 
         #  just because status is SUCCESS doesnt mean the results made it to redis, need to wait for redis results
-        if 'status' in task.info:
+        if 'result' in task.info:
             current_task_status = None
             interval = 24*60*60*1*1000
             loading_div_viz = {'display': 'none'}
