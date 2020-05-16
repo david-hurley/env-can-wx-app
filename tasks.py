@@ -88,6 +88,9 @@ def download_remote_data(self, station_name, station_id, start_year, start_month
     s3 = boto3.client('s3', region_name='us-east-1', aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
                       aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
 
+    #  update state to progress and give a status message
+    self.update_state(state='PROGRESS')
+
     #  user requested download dates
     start_date = pd.to_datetime('-'.join([start_year, start_month]))
     end_date = pd.to_datetime('-'.join([end_year, end_month]))
@@ -111,8 +114,6 @@ def download_remote_data(self, station_name, station_id, start_year, start_month
         output_filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'monthly.csv'])
 
     #  download file headers and csv from s3
-    self.update_state(state='PROGRESS', meta={'status': 'WORKING'})
-
     file_headers = query_header_name_s3(s3, input_filename)
     df = query_data_s3(s3, input_filename, sql_stmt, file_headers)
 
