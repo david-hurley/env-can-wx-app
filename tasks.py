@@ -76,7 +76,7 @@ celery_app.conf.update(
     event_queue_expires=60,
     worker_prefetch_multiplier=1,
     worker_concurrency=16,
-    worker_enable_remote_control=False, # need this to reduce connections
+    worker_enable_remote_control=False,  # need this to reduce connections
     result_backend=os.environ['REDIS_URL'],
     redis_max_connections=20
 )
