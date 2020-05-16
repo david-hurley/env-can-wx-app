@@ -99,22 +99,22 @@ def download_remote_data(self, station_name, station_id, start_year, start_month
 
         input_filename = '_'.join([station_id, 'hourly.csv'])
         output_filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'hourly.csv'])
-        file_headers = query_header_name_s3(s3, input_filename)
-        df = query_data_s3(s3, input_filename, sql_stmt, file_headers)
 
     elif frequency == 'Daily':
 
         input_filename = '_'.join([station_id, 'daily.csv'])
         output_filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'daily.csv'])
-        file_headers = query_header_name_s3(s3, input_filename)
-        df = query_data_s3(s3, input_filename, sql_stmt, file_headers)
 
     else:
 
         input_filename = '_'.join([station_id, 'monthly.csv'])
         output_filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'monthly.csv'])
-        file_headers = query_header_name_s3(s3, input_filename)
-        df = query_data_s3(s3, input_filename, sql_stmt, file_headers)
+
+    #  download file headers and csv from s3
+    self.update_state(state='PROGRESS', meta={'status': 'WORKING'})
+
+    file_headers = query_header_name_s3(s3, input_filename)
+    df = query_data_s3(s3, input_filename, sql_stmt, file_headers)
 
     #  send csv to s3
     upload_csv_S3(df, output_filename)
@@ -127,6 +127,6 @@ def download_remote_data(self, station_name, station_id, start_year, start_month
     df_filt = df_filt.replace(vals_to_remove, np.nan)
     df_filt = df_filt.dropna(how='all', axis=1)
     df_filt_col_names = {c: i for i, c in enumerate(df_filt.columns)}
-    df_filt_col_names['status'] = 'FINISHED'
+    df_filt_col_names['status'] = 'COMPLETE'
 
     return df_filt_col_names
