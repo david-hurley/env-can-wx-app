@@ -127,6 +127,6 @@ def download_remote_data(self, station_name, station_id, start_year, start_month
     df_filt = df_filt.replace(vals_to_remove, np.nan)
     df_filt = df_filt.dropna(how='all', axis=1)
     df_filt_col_names = {c: i for i, c in enumerate(df_filt.columns)}
-    df_filt_col_names['status'] = 'COMPLETE'
+    df_filt_col_names['result'] = 'COMPLETE'
 
     return df_filt_col_names
