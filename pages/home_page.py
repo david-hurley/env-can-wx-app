@@ -639,7 +639,8 @@ def background_download_task(selected_station, download_start_year, download_end
         task_id = download_task.id
         time.sleep(0.5)  # Need a short sleep for task_id to catch up
 
-        current_task_status = AsyncResult(id=task_id, app=celery_app).state
+        task = AsyncResult(id=task_id, app=celery_app)
+        current_task_status = task.state
         current_task_progress = 'Download Progress: Starting...'
         interval = 100  # set refresh interval short and to update task status
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
@@ -674,12 +675,12 @@ def background_download_task(selected_station, download_start_year, download_end
         task_result = {}
 
         #  just because status is SUCCESS doesnt mean the results made it to redis, need to wait for redis results
-        if task.info:
+        if 'result' in task.info:
             current_task_status = None
             interval = 24*60*60*1*1000
             loading_div_viz = {'display': 'none'}
             button_visibility = {'display': 'block'}
-            task_result = task.result
+            task_result = task.info
             task_result.pop('result', None)  # remove key
             task.forget()
 

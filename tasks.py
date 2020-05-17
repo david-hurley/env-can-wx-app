@@ -89,7 +89,7 @@ def download_remote_data(self, station_name, station_id, start_year, start_month
                       aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
 
     #  update state to progress and give a status message
-    self.update_state(state='PROGRESS')
+    self.update_state(state='PROGRESS', meta={'status': 'WORKING'})
 
     #  user requested download dates
     start_date = pd.to_datetime('-'.join([start_year, start_month]))
