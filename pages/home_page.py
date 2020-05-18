@@ -33,22 +33,22 @@ def compute_great_circle_distance(lat_user, lon_user, lat_station, lon_station):
 
 
 #  this function downloads a file from s3
-def download_csv_s3(s3, filepath, bucket):
+def download_csv_s3(s3_access, filepath, bucket):
 
-    obj = s3.get_object(Bucket=bucket, Key=filepath)
-    df = pd.read_csv(obj['Body'], index_col=None)
+    obj = s3_access.get_object(Bucket=bucket, Key=filepath)
+    df_meta = pd.read_csv(obj['Body'], index_col=None)
 
-    return df
+    return df_meta
 
 ######################################### DATA INPUTS AND LINKS ########################################################
 
 
 #  setup s3 client
-s3 = boto3.client('s3', region_name='us-east-1', aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+s3_access = boto3.client('s3', region_name='us-east-1', aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
                   aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
 
 #  create dataframe of weather station locations and available years of data
-df = download_csv_s3(s3, 'env-can-wx-station-metadata.csv', os.environ['S3_BUCKET'])
+df = download_csv_s3(s3_access, 'env-can-wx-station-metadata.csv', os.environ['S3_BUCKET'])
 
 #  convert times to datetime format
 df[['first_year_hly', 'last_year_hly', 'first_year_dly', 'last_year_dly', 'first_year_mly', 'last_year_mly']] = \
@@ -675,7 +675,7 @@ def background_download_task(selected_station, download_start_year, download_end
         task_result = {}
 
         #  just because status is SUCCESS doesnt mean the results made it to redis, need to wait for redis results
-        if 'result' in task.info:
+        if task.info:
             current_task_status = None
             interval = 24*60*60*1*1000
             loading_div_viz = {'display': 'none'}

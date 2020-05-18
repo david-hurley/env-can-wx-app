@@ -81,6 +81,7 @@ celery_app.conf.update(
     redis_max_connections=20
 )
 
+
 @celery_app.task(bind=True, time_limit=180)
 def download_remote_data(self, station_name, station_id, start_year, start_month, end_year, end_month, frequency):
 
