@@ -109,8 +109,7 @@ app_layout = html.Div(
                  style={'display': 'none'}
                  ),
         html.Div(id='task-status',
-                 children=None,
-                 style={'display': 'none'}
+                 children=None
                  ),
         html.Div(id='message-status',
                  children=None,
@@ -642,7 +641,7 @@ def background_download_task(selected_station, download_start_year, download_end
         task = AsyncResult(id=task_id, app=celery_app)
         current_task_status = task.state
         current_task_progress = 'Download Progress: Starting...'
-        interval = 100  # set refresh interval short and to update task status
+        interval = 500  # set refresh interval short and to update task status
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         button_visibility = {'display': 'none'}
 
@@ -669,7 +668,7 @@ def background_download_task(selected_station, download_start_year, download_end
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
         current_task_progress = 'Download Progress: Complete!!!'
-        interval = 100
+        interval = 500
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         button_visibility = {'display': 'none'}
         task_result = {}
