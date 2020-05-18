@@ -109,7 +109,8 @@ app_layout = html.Div(
                  style={'display': 'none'}
                  ),
         html.Div(id='task-status',
-                 children=None
+                 children=None,
+                 style={'display': 'none'}
                  ),
         html.Div(id='message-status',
                  children=None,
