@@ -660,7 +660,7 @@ def background_download_task(selected_station, download_start_year, download_end
     elif task_status_state == 'PROGRESS':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: Downloading...'
+        current_task_progress = 'Download Progress: Downloading...May Take A Few Minutes'
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
@@ -675,7 +675,7 @@ def background_download_task(selected_station, download_start_year, download_end
         task_result = {}
 
         #  just because status is SUCCESS doesnt mean the results made it to redis, need to wait for redis results
-        if task.info:
+        if 'result' in task.info:
             current_task_status = None
             interval = 24*60*60*1*1000
             loading_div_viz = {'display': 'none'}
