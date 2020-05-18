@@ -707,6 +707,6 @@ def background_download_task(selected_station, download_start_year, download_end
 def serve_static(filename):
 
     #  presigned url for user to download file directly from s3, removes storage from memory
-    url = s3.generate_presigned_url('get_object', Params={'Bucket': os.environ['S3_BUCKET'], 'Key': filename}, ExpiresIn=100)
+    url = s3.generate_presigned_url('get_object', Params={'Bucket': os.environ['S3_BUCKET'], 'Key': 'tmp/' + filename}, ExpiresIn=100)
 
     return redirect(url, code=302)
