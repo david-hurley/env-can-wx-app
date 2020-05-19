@@ -36,7 +36,7 @@ def compute_great_circle_distance(lat_user, lon_user, lat_station, lon_station):
 def download_csv_s3(s3, filepath, bucket):
 
     obj = s3.get_object(Bucket=bucket, Key=filepath)
-    df = pd.read_csv(obj['Body'], index_col=None)
+    df = pd.read_csv(obj['Body'], index_col=0)
 
     return df
 
@@ -564,12 +564,12 @@ def update_download_message(selected_station, download_start_year, download_end_
 
         # if all the options are correct and present then provide the download message
         else:
-            df_selected_data = pd.DataFrame(selected_station)
+            df_selected_data = pd.DataFrame(selected_station).iloc[selected_station_row[0]]
             start_date = datetime.strptime(str(download_start_year) + str(download_start_month) + '1', '%Y%m%d').date()
             end_date = datetime.strptime(str(download_end_year) + str(download_end_month) + '1', '%Y%m%d').date() - timedelta(1)
             message = 'First select GENERATE DATA and once loading is complete select DOWNLOAD DATA to begin downloading {} ' \
                       'data from {} to {} for station {} (station ID {})' \
-                    .format(download_frequency, start_date, end_date, df_selected_data.station_name[0], df_selected_data.station_id[0])
+                    .format(download_frequency, start_date, end_date, df_selected_data.station_name, df_selected_data.station_id)
             message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem', 'border': '2px red dashed'}
             message_status = 'PROCEED'
     else:
@@ -599,13 +599,14 @@ def update_download_message(selected_station, download_start_year, download_end_
      Input(component_id='download-frequency', component_property='value'),
      Input(component_id='generate-data-button', component_property='n_clicks'),
      Input(component_id='message-status', component_property='children'),
-     Input(component_id='task-refresh-interval', component_property='n_intervals')],
+     Input(component_id='task-refresh-interval', component_property='n_intervals'),
+     Input(component_id='selected-station', component_property='selected_rows')],
     [State(component_id='task-status', component_property='children'),
      State(component_id='task-id', component_property='children')]
 )
 def background_download_task(selected_station, download_start_year, download_end_year, download_start_month,
                              download_end_month, download_frequency, generate_button_click, message_status,
-                             n_int, task_status_state, task_id_state):
+                             n_int, selected_station_row, task_status_state, task_id_state):
 
     #  look for specific click event
     ctx = dash.callback_context
@@ -614,25 +615,25 @@ def background_download_task(selected_station, download_start_year, download_end
     if ctx.triggered[0]['prop_id'] == 'generate-data-button.n_clicks' and generate_button_click and message_status == 'PROCEED' and task_status_state is None:
 
         #  create data frame of selected station metadata
-        df_selected_data = pd.DataFrame(selected_station)
-        station_metadata = {k: v for v, k in enumerate([df_selected_data.latitude[0], df_selected_data.longitude[0], df_selected_data.station_name[0]])}
+        df_selected_data = pd.DataFrame(selected_station).iloc[selected_station_row[0]]
+        station_metadata = {k: v for v, k in enumerate([df_selected_data.latitude, df_selected_data.longitude, df_selected_data.station_name])}
 
         #  create filename link for S3 download following background task
         if download_frequency == 'Hourly':
-            filename = '_'.join([df_selected_data.station_name[0].replace(' ', '_'), str(df_selected_data.station_id[0]),
+            filename = '_'.join([df_selected_data.station_name.replace(' ', '_'), str(df_selected_data.station_id),
                                  str(download_start_year), str(download_end_year), 'hourly.csv'])
         elif download_frequency == 'Daily':
-            filename = '_'.join([df_selected_data.station_name[0].replace(' ', '_'), str(df_selected_data.station_id[0]),
+            filename = '_'.join([df_selected_data.station_name.replace(' ', '_'), str(df_selected_data.station_id),
                                  str(download_start_year), str(download_end_year), 'daily.csv'])
         elif download_frequency == 'Monthly':
-            filename = '_'.join([df_selected_data.station_name[0].replace(' ', '_'), str(df_selected_data.station_id[0]),
+            filename = '_'.join([df_selected_data.station_name.replace(' ', '_'), str(df_selected_data.station_id),
                                  str(download_start_year), str(download_end_year), 'monthly.csv'])
 
         relative_filename = os.path.join('download', filename)
         link_path = '/{}'.format(relative_filename)
 
         #  start background task in Celery and Redis
-        download_task = tasks.download_remote_data.apply_async([df_selected_data.station_name[0], str(df_selected_data.station_id[0]), str(download_start_year),
+        download_task = tasks.download_remote_data.apply_async([df_selected_data.station_name, str(df_selected_data.station_id), str(download_start_year),
                                                                 str(download_start_month), str(download_end_year), str(download_end_month), download_frequency])
 
         #  task id of current celery task
