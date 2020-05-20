@@ -647,7 +647,7 @@ def background_download_task(selected_station, download_start_year, download_end
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         button_visibility = {'display': 'none'}
 
-        return link_path, task_id, filename, station_metadata, current_task_status, interval, button_visibility, loading_div_viz, dash.no_update, current_task_progress
+        return link_path, task_id, output_filename, station_metadata, current_task_status, interval, button_visibility, loading_div_viz, dash.no_update, current_task_progress
 
     #  task will be pending if it's waiting in the queue
     elif task_status_state == 'PENDING':
