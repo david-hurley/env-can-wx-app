@@ -620,20 +620,20 @@ def background_download_task(selected_station, download_start_year, download_end
 
         #  create filename link for S3 download following background task
         if download_frequency == 'Hourly':
-            filename = '_'.join([df_selected_data.station_name.replace(' ', '_'), str(df_selected_data.station_id),
+            output_filename = '_'.join(['WHC', df_selected_data.station_name.replace(' ', '_'), str(df_selected_data.station_id),
                                  str(download_start_year), str(download_end_year), 'hourly.csv'])
         elif download_frequency == 'Daily':
-            filename = '_'.join([df_selected_data.station_name.replace(' ', '_'), str(df_selected_data.station_id),
+            output_filename = '_'.join(['WHC', df_selected_data.station_name.replace(' ', '_'), str(df_selected_data.station_id),
                                  str(download_start_year), str(download_end_year), 'daily.csv'])
         elif download_frequency == 'Monthly':
-            filename = '_'.join([df_selected_data.station_name.replace(' ', '_'), str(df_selected_data.station_id),
+            output_filename = '_'.join(['WHC', df_selected_data.station_name.replace(' ', '_'), str(df_selected_data.station_id),
                                  str(download_start_year), str(download_end_year), 'monthly.csv'])
 
-        relative_filename = os.path.join('download', filename)
+        relative_filename = os.path.join('download', output_filename)
         link_path = '/{}'.format(relative_filename)
 
         #  start background task in Celery and Redis
-        download_task = tasks.download_remote_data.apply_async([df_selected_data.station_name, str(df_selected_data.station_id), str(download_start_year),
+        download_task = tasks.download_remote_data.apply_async([df_selected_data.station_name, output_filename, str(df_selected_data.station_id), str(download_start_year),
                                                                 str(download_start_month), str(download_end_year), str(download_end_month), download_frequency])
 
         #  task id of current celery task

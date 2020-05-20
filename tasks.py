@@ -82,8 +82,8 @@ celery_app.conf.update(
 )
 
 
-@celery_app.task(bind=True, time_limit=180)
-def download_remote_data(self, station_name, station_id, start_year, start_month, end_year, end_month, frequency):
+@celery_app.task(bind=True, time_limit=300)
+def download_remote_data(self, station_name, output_filename, station_id, start_year, start_month, end_year, end_month, frequency):
 
     #  setup s3 client
     s3 = boto3.client('s3', region_name='us-east-1', aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
@@ -102,17 +102,17 @@ def download_remote_data(self, station_name, station_id, start_year, start_month
     if frequency == 'Hourly':
 
         input_filename = '_'.join([station_id, 'hourly.csv'])
-        output_filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'hourly.csv'])
+        # output_filename = '_'.join(['WHC', station_name.replace(' ', '_'), station_id, start_year, end_year, 'hourly.csv'])
 
     elif frequency == 'Daily':
 
         input_filename = '_'.join([station_id, 'daily.csv'])
-        output_filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'daily.csv'])
+        # output_filename = '_'.join(['WHC', station_name.replace(' ', '_'), station_id, start_year, end_year, 'daily.csv'])
 
     else:
 
         input_filename = '_'.join([station_id, 'monthly.csv'])
-        output_filename = '_'.join([station_name.replace(' ', '_'), station_id, start_year, end_year, 'monthly.csv'])
+        # output_filename = '_'.join(['WHC', station_name.replace(' ', '_'), station_id, start_year, end_year, 'monthly.csv'])
 
     #  download file headers and csv from s3
     file_headers = query_header_name_s3(s3, input_filename)
