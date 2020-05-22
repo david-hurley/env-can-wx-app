@@ -43,11 +43,11 @@ def download_csv_s3(s3, filepath, bucket):
 ######################################### DATA INPUTS AND LINKS ########################################################
 
 
-#  setup s3 client
+#  setup s3 client to bucket that stores user download data
 s3 = boto3.client('s3', region_name='us-east-1', aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
                   aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
 
-#  create dataframe of weather station locations and available years of data
+#  create dataframe from weather station metadata
 df = download_csv_s3(s3, 'env-can-wx-station-metadata.csv', os.environ['S3_BUCKET'])
 
 #  convert times to datetime format
@@ -64,6 +64,7 @@ spinner = base64.b64encode(open(os.path.join('assets', 'spinner.gif'), 'rb').rea
 ######################################### PLOTS ########################################################################
 
 
+#  this function defines the main map of stations
 def station_map(stations, lat_selected, lon_selected, name_selected, color):
     return {'data': [
         # weather station locations
@@ -103,26 +104,34 @@ def station_map(stations, lat_selected, lon_selected, name_selected, color):
 
 app_layout = html.Div(
     [
-        #  hidden div to store task-id, task-status, and message-status
+        #  hidden div to store celery background job task-idtask-status, and message-status
         html.Div(id='task-id',
                  children=None,
                  style={'display': 'none'}
                  ),
+        #  hidden div to store celery background job task-status
         html.Div(id='task-status',
                  children=None,
                  style={'display': 'none'}
                  ),
+        #  hidden div to store status of download message
         html.Div(id='message-status',
                  children=None,
                  style={'display': 'none'}
                  ),
-
+        #  hidden div to store trigger to force table update, this is a "workaround" since Dash Datatable will not
+        #  update on row_select
+        html.Div(id='false-trigger',
+                 children=None,
+                 style={'display': 'none'}
+                 ),
         #  page refresh interval
         dcc.Interval(
             id='task-refresh-interval',
             interval=24*60*60*1*1000,  # in milliseconds
             n_intervals=0
         ),
+
         #  header
         html.Div(
             [
@@ -150,7 +159,7 @@ app_layout = html.Div(
                                           figure=station_map(df, [], [], [], 'blue'))
                             ], className='graph_style', style={'height': '450px'},
                         ),
-                        # table container
+                        #  Dash datatable container
                         html.Div(
                             [
                                 html.H6('Click on station in map and select in table below prior to generating data', className='filter_box_labels'),
@@ -161,7 +170,8 @@ app_layout = html.Div(
                                     style_table={'overflowX': 'scroll'},
                                     style_header={'border': '1px solid black', 'backgroundColor': 'rgb(200, 200, 200)'},
                                     style_cell={'border': '1px solid grey'},
-                                    row_selectable='single'),
+                                    row_selectable='single',
+                                ),
                                 html.Label('(Multiple stations at the same location may exist)', className='table_subtitle'),
                             ], style={'margin-top': '1rem'},
                         ),
@@ -193,7 +203,7 @@ app_layout = html.Div(
                                             style={'width': '90%'}),
                                     ], className='flex_container_row',
                                 ),
-                                # data interval input
+                                #  data interval input
                                 html.Label("Data Interval:", className='filter_box_labels'),
                                 html.Div(
                                     [
@@ -203,7 +213,7 @@ app_layout = html.Div(
                                             style={'width': '90%'}),
                                     ], className='flex_container_row',
                                 ),
-                                # date input
+                                #  date available input
                                 html.Label("Data Available Between:", className='filter_box_labels'),
                                 html.Div(
                                     [
@@ -225,7 +235,7 @@ app_layout = html.Div(
                                         ),
                                     ], className='flex_container_row',
                                 ),
-                                #  distance input
+                                #  distance and location input
                                 html.Label("Distance Filter:", className='filter_box_labels'),
                                 html.Div(
                                     [
@@ -260,7 +270,7 @@ app_layout = html.Div(
                         ),
                         html.Div(
                             [
-                                #  dowload dates and message
+                                #  download dates and message
                                 html.Div(
                                     [
                                         html.Label('Download Dates:', className='filter_box_labels'),
@@ -385,7 +395,8 @@ app_layout = html.Div(
      Output(component_id='download-month-start', component_property='value'),
      Output(component_id='download-month-end', component_property='value'),
      Output(component_id='download-year-start', component_property='value'),
-     Output(component_id='download-year-end', component_property='value')],
+     Output(component_id='download-year-end', component_property='value'),
+     Output(component_id='false-trigger', component_property='children')],
     [Input(component_id='province', component_property='value'),
      Input(component_id='frequency', component_property='value'),
      Input(component_id='first-year', component_property='value'),
@@ -397,10 +408,10 @@ app_layout = html.Div(
      Input(component_id='station-map', component_property='clickData')]
 )
 def data_filter(prov, frequency, first_year, end_year, lat, lon, radius, stn_name, on_map_click):
-    # don't use global variable to filter weather station data on map
+    #  don't use global variable to filter weather station data on map
     df_filter = df.copy()
 
-    # filter to limit mapped data by province
+    #  filter to limit mapped data by province
     if prov:
         df_filter = df_filter[df_filter.province == prov]
     else:
@@ -465,7 +476,7 @@ def data_filter(prov, frequency, first_year, end_year, lat, lon, radius, stn_nam
         table_data = []
         selected_row = []
 
-    return station_map(df_filter, selected_lat, selected_lon, selected_station_name, 'blue'), table_data, selected_row, None, None, None, None, None
+    return station_map(df_filter, selected_lat, selected_lon, selected_station_name, 'blue'), table_data, selected_row, None, None, None, None, None, None
 
 # download options based on selected station callback
 @app.callback(
@@ -476,9 +487,10 @@ def data_filter(prov, frequency, first_year, end_year, lat, lon, radius, stn_nam
      Output(component_id='download-year-end', component_property='options')],
     [Input(component_id='selected-station', component_property='data'),
      Input(component_id='selected-station', component_property='selected_rows'),
-     Input(component_id='download-frequency', component_property='value')]
+     Input(component_id='download-frequency', component_property='value'),
+     Input(component_id='false-trigger', component_property='children')]
 )
-def update_download_dropdowns(selected_station, selected_station_row, selected_frequency):
+def update_download_dropdowns(selected_station, selected_station_row, selected_frequency, false_trigger):
 
     if selected_station and selected_station_row:
 
@@ -488,6 +500,9 @@ def update_download_dropdowns(selected_station, selected_station_row, selected_f
         #  populate dropdown tab with available frequency of data to download
         available_frequency = df_selected_data[['first_hourly_data', 'first_daily_data', 'first_monthly_data']].dropna().index.to_list()
         download_frequency = [{'label': freq.split('_')[1].capitalize(), 'value': freq.split('_')[1].capitalize()} for freq in available_frequency]
+
+        if selected_frequency not in available_frequency:
+            selected_frequency = None
 
         #  populate dropdown tab with available months of data to download
         download_month_start = [{'label': year, 'value': year} for year in range(1, 13, 1)]
@@ -531,14 +546,22 @@ def update_download_dropdowns(selected_station, selected_station_row, selected_f
      Input(component_id='download-month-start', component_property='value'),
      Input(component_id='download-month-end', component_property='value'),
      Input(component_id='download-frequency', component_property='value'),
-     Input(component_id='selected-station', component_property='selected_rows')]
+     Input(component_id='selected-station', component_property='selected_rows'),
+     Input(component_id='false-trigger', component_property='children')]
 )
-def update_download_message(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency, selected_station_row):
+def update_download_message(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency, selected_station_row, false_trigger):
 
     # if all the necessary download settings have been selected then display download message
     if selected_station and download_frequency and download_start_year and download_start_month and download_end_year and download_end_month:
 
-        # if the same start and end data are chose advise user to select something else
+        #  dataframe of tabledata
+        df_selected_data = pd.DataFrame(selected_station).iloc[selected_station_row[0]]
+
+        #  hack to reset message status if frequency is not in available frequncy, otherwise error in download
+        available_frequency = df_selected_data[['first_hourly_data', 'first_daily_data', 'first_monthly_data']].dropna().index.to_list()
+        available_frequency = [freq.split('_')[1].capitalize() for freq in available_frequency]
+
+        #  if the same start and end data are chose advise user to select something else
         if download_start_year == download_end_year and download_start_month == download_end_month:
             message = 'Download dates must be different'
             message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem', 'border': '2px red dashed'}
@@ -562,9 +585,13 @@ def update_download_message(selected_station, download_start_year, download_end_
             message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem'}
             message_status = None
 
+        elif download_frequency not in available_frequency:
+            message = []
+            message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem'}
+            message_status = None
+
         # if all the options are correct and present then provide the download message
         else:
-            df_selected_data = pd.DataFrame(selected_station).iloc[selected_station_row[0]]
             start_date = datetime.strptime(str(download_start_year) + str(download_start_month) + '1', '%Y%m%d').date()
             end_date = datetime.strptime(str(download_end_year) + str(download_end_month) + '1', '%Y%m%d').date() - timedelta(1)
             message = 'First select GENERATE DATA and once loading is complete select DOWNLOAD DATA to begin downloading {} ' \
@@ -572,6 +599,7 @@ def update_download_message(selected_station, download_start_year, download_end_
                     .format(download_frequency, start_date, end_date, df_selected_data.station_name, df_selected_data.station_id)
             message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem', 'border': '2px red dashed'}
             message_status = 'PROCEED'
+
     else:
         message = []
         message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem'}

@@ -42,27 +42,41 @@ app_layout = html.Div([
             html.Label('Weather History Canada was born out of a desire to make the process of searching for, downloading, and visualizing '
                        'historical Canadian weather data faster and easier. As someone with a background in meteorology and experience in the environmental '
                        'consulting services, I know how important it is to have quick access to historical weather data. '
-                       'However, I often found myself and co-workers spending multiple hours downloading weather station data from the ECCC '
-                       'portal, combining the datasets, and visualizing the data only to realize at the end that we needed something different and had to '
-                       'start over. Eventually, I became frustrated with the current system and as it goes "necessity is the mother of invention" so Weather '
+                       'However, I often found myself spending multiple hours downloading weather station data from the ECCC '
+                       'portal, combining the datasets, and visualizing the data only to realize at the end that I needed something different.'
+                       ' Eventually, I became frustrated with the current system and as it goes "necessity is the mother of invention" so Weather '
                        'History Canada was born.'),
 
             html.H4("Limitations of Weather History Canada", style={'font-weight': 'bold'}),
             html.Label('Weather History Canada is a tool for more quickly downloading and visualizing weather data from ECCC '
                        'maintained weather stations. Weather History Canada makes no warranty, express or implied, and assumes '
-                       'no liability with respect to the use of weather data obtained from this site. Weather History Canada '
-                       'provides no assurance as to the quality or completeness of ECCC maintained weather data sets.')
+                       'no liability with respect to the use of weather data obtained from this site.'),
+            html.Br(),
+            html.Label('Additionally, "Environment and Climate Change Canada does not warrant the quality, accuracy, or completeness of '
+                       'any information, data or product from these web pages. It is provided "AS IS" without warranty or condition of '
+                       'any nature. Environment and Climate Change Canada disclaims all other warranties, either expressed or implied, '
+                       'including but not limited to implied warranties of merchantability and fitness for a particular purpose, '
+                       'with respect to the information, data, product or accompanying materials retrieved from this website."')
 
         ], className='seven columns', style={'margin-left': '1rem'}),
 
         html.Div([
             html.H6("Contact Weather History Canada", style={'font-weight': 'bold'}),
             html.Label('Weather History Canada is a work in progress with a goal of continuing to improve the user experience. '
-                       'All comments/suggestions and questions are welcome. Additionally, data downloaded from ECCC is open source, and in '
-                       'keeping with this, the code for Weather History Canada is freely available on GitHub along with a more in depth description of the app.'),
+                       'All comments/suggestions and questions are welcome.'),
             html.Label(['Email: ', html.A('weatherhistorycanada@gmail.com', href='weatherhistorycanada@gmail.com')], style={'margin-top': '2rem'}),
-            html.Label(['GitHub Link: ', html.A('GET THE CODE', href='https://github.com/david-hurley/env-can-wx-app')])
-        ], className='four columns', style={'margin-top': '2rem', 'margin-left': '13rem', 'border': '2px black solid', 'text-align': 'left'})
+        ], className='four columns', style={'margin-top': '2rem', 'margin-left': '13rem', 'border': '2px black solid', 'text-align': 'left'}),
+
+        html.Div([
+
+            html.H6("Note About Data Processing", style={'font-weight': 'bold'}),
+            html.Label(['In order to reduce download and rendering times, the data from ECCC has been modified to remove the DATA FLAG columns.'
+                        ' The DATA FLAG values accompany missing data and explain why it is missing. At this time there is no plan to include these data.'
+                        ' More information on the meaning of the DATA FLAG columns can be found in the ',
+                        html.A('Technical Documentation PDF', href='https://climate.weather.gc.ca/doc/Technical_Documentation.pdf'),
+                        ' and a description of the downloaded data parameters is available ',
+                        html.A('on the ECCC webpage.', href='https://climate.weather.gc.ca/glossary_e.html')])
+        ], className='four columns', style={'margin-top': '2rem', 'margin-left': '13rem', 'text-align': 'left'})
 
     ], className='row')
 ])
