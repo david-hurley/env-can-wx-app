@@ -29,9 +29,9 @@ pre-signed URL
 
 ### Screenshots
 
-![](assets/demo_01.png)
+![](assets/demo1.png)
 
-![](assets/demo_02.png)
+![](assets/demo2.png)
 
 ### What do the files do
 
