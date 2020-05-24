@@ -501,7 +501,7 @@ def update_download_dropdowns(selected_station, selected_station_row, selected_f
         available_frequency = df_selected_data[['first_hourly_data', 'first_daily_data', 'first_monthly_data']].dropna().index.to_list()
         download_frequency = [{'label': freq.split('_')[1].capitalize(), 'value': freq.split('_')[1].capitalize()} for freq in available_frequency]
 
-        if selected_frequency not in available_frequency:
+        if not any(freq['value'] == selected_frequency for freq in download_frequency):
             selected_frequency = None
 
         #  populate dropdown tab with available months of data to download
@@ -549,17 +549,17 @@ def update_download_dropdowns(selected_station, selected_station_row, selected_f
      Input(component_id='selected-station', component_property='selected_rows'),
      Input(component_id='false-trigger', component_property='children')]
 )
-def update_download_message(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, download_frequency, selected_station_row, false_trigger):
+def update_download_message(selected_station, download_start_year, download_end_year, download_start_month, download_end_month, selected_frequency, selected_station_row, false_trigger):
 
     # if all the necessary download settings have been selected then display download message
-    if selected_station and download_frequency and download_start_year and download_start_month and download_end_year and download_end_month:
+    if selected_station and selected_frequency and download_start_year and download_start_month and download_end_year and download_end_month:
 
         #  dataframe of tabledata
         df_selected_data = pd.DataFrame(selected_station).iloc[selected_station_row[0]]
 
         #  hack to reset message status if frequency is not in available frequncy, otherwise error in download
         available_frequency = df_selected_data[['first_hourly_data', 'first_daily_data', 'first_monthly_data']].dropna().index.to_list()
-        available_frequency = [freq.split('_')[1].capitalize() for freq in available_frequency]
+        download_frequency = [freq.split('_')[1].capitalize() for freq in available_frequency]
 
         #  if the same start and end data are chose advise user to select something else
         if download_start_year == download_end_year and download_start_month == download_end_month:
@@ -585,7 +585,7 @@ def update_download_message(selected_station, download_start_year, download_end_
             message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem'}
             message_status = None
 
-        elif download_frequency not in available_frequency:
+        elif selected_frequency not in download_frequency:
             message = []
             message_style = {'width': '100%', 'margin-right': '1rem', 'margin-top': '1rem'}
             message_status = None
@@ -670,7 +670,7 @@ def background_download_task(selected_station, download_start_year, download_end
 
         task = AsyncResult(id=task_id, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: Starting...'
+        current_task_progress = 'Download Starting...'
         interval = 500  # set refresh interval short and to update task status
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         button_visibility = {'display': 'none'}
@@ -681,7 +681,7 @@ def background_download_task(selected_station, download_start_year, download_end
     elif task_status_state == 'PENDING':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: Pending...'
+        current_task_progress = 'Download Pending...'
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
@@ -689,7 +689,7 @@ def background_download_task(selected_station, download_start_year, download_end
     elif task_status_state == 'PROGRESS':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: Downloading...May Take A Few Minutes'
+        current_task_progress = 'Downloading...May Take A Few Minutes'
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_status, dash.no_update, dash.no_update, dash.no_update, dash.no_update, current_task_progress
 
@@ -697,7 +697,7 @@ def background_download_task(selected_station, download_start_year, download_end
     elif task_status_state == 'SUCCESS':
         task = AsyncResult(id=task_id_state, app=celery_app)
         current_task_status = task.state
-        current_task_progress = 'Download Progress: Complete!!!'
+        current_task_progress = 'Download Complete!!!'
         interval = 500
         loading_div_viz = {'display': 'inline-block', 'text-align': 'center'}
         button_visibility = {'display': 'none'}
